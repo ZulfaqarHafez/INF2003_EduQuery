@@ -3,14 +3,14 @@ async function runQuery() {
   const queryType = document.getElementById("queryType").value;
 
   let url = "";
-  if (queryType === "all") url = `/api/schools?name=${school}`;
-  if (queryType === "subjects") url = `/api/schools/subjects?name=${school}`;
-  if (queryType === "ccas") url = `/api/schools/ccas?name=${school}`;
-  if (queryType === "programmes") url = `/api/schools/programmes?name=${school}`;
-  if (queryType === "distinctives") url = `/api/schools/distinctives?name=${school}`;
+  if (queryType === "all") url = `/api/schools?name=${encodeURIComponent(school)}`;
+  if (queryType === "subjects") url = `/api/schools/subjects?name=${encodeURIComponent(school)}`;
+  if (queryType === "ccas") url = `/api/schools/ccas?name=${encodeURIComponent(school)}`;
+  if (queryType === "programmes") url = `/api/schools/programmes?name=${encodeURIComponent(school)}`;
+  if (queryType === "distinctives") url = `/api/schools/distinctives?name=${encodeURIComponent(school)}`;
 
   try {
-    const res = await fetch(url);
+    const res = await fetch(url);  // ✅ Fixed: use the 'url' variable
     const data = await res.json();
     renderTable(data);
   } catch (err) {
