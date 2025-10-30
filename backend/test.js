@@ -17,7 +17,7 @@ async function testPg() {
   try {
     // Basic connectivity
     const { rows: nowRows } = await pool.query('SELECT NOW() as server_time');
-    console.log('✅ PG connected. server_time =', nowRows[0].server_time);
+    console.log('PG connected. server_time =', nowRows[0].server_time);
 
     // List all tables to verify schema
     const { rows: tables } = await pool.query(`

@@ -661,6 +661,88 @@ body {
   color: var(--gray-500);
 }
 
+/* ========== Edit/Delete Modal Styles ========== */
+.delete-modal-body {
+  padding: 24px;
+}
+
+.delete-warning {
+  font-size: 16px;
+  color: var(--gray-800);
+  margin-bottom: 20px;
+}
+
+.delete-warning strong {
+  color: var(--danger);
+  font-weight: 600;
+}
+
+.delete-info {
+  background: var(--danger-light);
+  border: 1px solid #FCA5A5;
+  border-radius: var(--radius);
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.delete-info p {
+  font-size: 14px;
+  color: var(--gray-700);
+  margin-bottom: 12px;
+  font-weight: 500;
+}
+
+.delete-info ul {
+  margin: 0 0 12px 20px;
+  padding: 0;
+  list-style-type: disc;
+}
+
+.delete-info li {
+  font-size: 14px;
+  color: var(--gray-700);
+  margin-bottom: 4px;
+}
+
+.delete-note {
+  font-weight: 600;
+  color: var(--danger);
+  margin: 0;
+}
+
+/* Modal animations for edit and delete modals */
+#editModal.active .modal-content,
+#deleteModal.active .modal-content {
+  animation: modalSlideIn 0.3s ease;
+}
+
+/* Ensure buttons in action column have consistent spacing */
+.action-buttons {
+  display: flex;
+  gap: 8px;
+  flex-wrap: nowrap;
+}
+
+.action-buttons button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+/* Improve form validation feedback */
+.form-group input:invalid:focus,
+.form-group select:invalid:focus {
+  border-color: var(--danger);
+  box-shadow: 0 0 0 3px var(--danger-light);
+}
+
+.form-group input:valid:focus,
+.form-group select:valid:focus {
+  border-color: var(--success);
+  box-shadow: 0 0 0 3px var(--success-light);
+}
+
 /* ========== Toast ========== */
 .toast {
   position: fixed;
@@ -781,5 +863,24 @@ body {
 
   .action-buttons {
     flex-direction: column;
+  }
+  
+  .modal-content {
+    margin: 10px;
+    max-height: calc(100vh - 20px);
+  }
+  
+  .delete-modal-body {
+    padding: 16px;
+  }
+  
+  .action-buttons {
+    flex-direction: column;
+    width: 100%;
+  }
+  
+  .action-buttons button {
+    width: 100%;
+    justify-content: center;
   }
 }
