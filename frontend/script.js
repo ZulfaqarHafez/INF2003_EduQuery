@@ -1,5 +1,5 @@
-// ========== Debug Mode ==========
-console.log('EduQuery Script Loaded');
+let pendingDeleteId = null;
+let pendingDeleteName = null;
 
 // ========== MAKE FUNCTIONS GLOBAL ==========
 // All functions must be in global scope for inline onclick to work
@@ -179,13 +179,13 @@ function renderTable(data, queryType) {
       html += `
         <td>
           <div class="action-buttons">
-            <button class="btn-edit" onclick='editSchool(${JSON.stringify(row)})'>
+            <button class="btn-edit" onclick='editSchool(${JSON.stringify(row).replace(/'/g, "&apos;")})'>
               <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
                 <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z"/>
               </svg>
               Edit
             </button>
-            <button class="btn-danger" onclick='deleteSchool(${row.school_id}, "${row.school_name}")'>
+            <button class="btn-danger" onclick='deleteSchool(${row.school_id}, "${row.school_name.replace(/'/g, "&apos;")}")'>
               <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
                 <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"/>
               </svg>
@@ -205,7 +205,7 @@ function renderTable(data, queryType) {
 
 // ========== CRUD Operations (GLOBAL) ==========
 
-// Modal Management
+// Add Modal Management
 window.showAddModal = function() {
   console.log('Opening add modal');
   const modal = document.getElementById('addModal');
@@ -223,6 +223,62 @@ window.hideAddModal = function() {
   if (modal) {
     modal.classList.remove('active');
     document.getElementById('addSchoolForm').reset();
+    document.body.style.overflow = 'auto';
+  }
+};
+
+// Edit Modal Management
+window.showEditModal = function(school) {
+  console.log('Opening edit modal for school:', school);
+  const modal = document.getElementById('editModal');
+  if (modal) {
+    // Populate the form with school data
+    document.getElementById('editSchoolId').value = school.school_id;
+    document.getElementById('editSchoolName').value = school.school_name;
+    document.getElementById('editAddress').value = school.address;
+    document.getElementById('editPostalCode').value = school.postal_code;
+    document.getElementById('editZoneCode').value = school.zone_code;
+    document.getElementById('editMainlevelCode').value = school.mainlevel_code;
+    document.getElementById('editPrincipalName').value = school.principal_name;
+    
+    modal.classList.add('active');
+    document.body.style.overflow = 'hidden';
+  } else {
+    console.error('Edit modal not found');
+  }
+};
+
+window.hideEditModal = function() {
+  console.log('Closing edit modal');
+  const modal = document.getElementById('editModal');
+  if (modal) {
+    modal.classList.remove('active');
+    document.getElementById('editSchoolForm').reset();
+    document.body.style.overflow = 'auto';
+  }
+};
+
+// Delete Modal Management
+window.showDeleteModal = function(schoolId, schoolName) {
+  console.log('Opening delete modal for:', schoolName);
+  const modal = document.getElementById('deleteModal');
+  if (modal) {
+    pendingDeleteId = schoolId;
+    pendingDeleteName = schoolName;
+    
+    document.getElementById('deleteSchoolName').textContent = schoolName;
+    modal.classList.add('active');
+    document.body.style.overflow = 'hidden';
+  }
+};
+
+window.hideDeleteModal = function() {
+  console.log('Closing delete modal');
+  const modal = document.getElementById('deleteModal');
+  if (modal) {
+    modal.classList.remove('active');
+    pendingDeleteId = null;
+    pendingDeleteName = null;
     document.body.style.overflow = 'auto';
   }
 };
@@ -272,40 +328,31 @@ window.addSchool = async function(event) {
   }
 };
 
-// Update Operation
-window.editSchool = async function(school) {
-  console.log('Editing school:', school);
+// Edit/Update Operation - Now uses modal
+window.editSchool = function(school) {
+  console.log('Edit school clicked:', school);
+  showEditModal(school);
+};
+
+// Update Operation (form submission)
+window.updateSchool = async function(event) {
+  event.preventDefault();
+  console.log('Updating school...');
   
-  // Create a simple inline editing dialog
-  const newName = prompt('School Name:', school.school_name);
-  if (!newName) return; // User cancelled
-  
-  const newAddress = prompt('Address:', school.address);
-  if (newAddress === null) return;
-  
-  const newPostal = prompt('Postal Code:', school.postal_code);
-  if (newPostal === null) return;
-  
-  const newZone = prompt('Zone Code (NORTH/SOUTH/EAST/WEST/CENTRAL):', school.zone_code);
-  if (newZone === null) return;
-  
-  const newMainLevel = prompt('Main Level Code:', school.mainlevel_code);
-  if (newMainLevel === null) return;
-  
-  const newPrincipal = prompt('Principal Name:', school.principal_name);
-  if (newPrincipal === null) return;
-  
+  const schoolId = document.getElementById('editSchoolId').value;
   const updatedData = {
-    school_name: newName,
-    address: newAddress,
-    postal_code: newPostal,
-    zone_code: newZone,
-    mainlevel_code: newMainLevel,
-    principal_name: newPrincipal
+    school_name: document.getElementById('editSchoolName').value,
+    address: document.getElementById('editAddress').value,
+    postal_code: document.getElementById('editPostalCode').value,
+    zone_code: document.getElementById('editZoneCode').value,
+    mainlevel_code: document.getElementById('editMainlevelCode').value,
+    principal_name: document.getElementById('editPrincipalName').value
   };
   
+  console.log('Updated data:', updatedData);
+  
   try {
-    const res = await fetch(`/api/schools/${school.school_id}`, {
+    const res = await fetch(`/api/schools/${schoolId}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(updatedData)
@@ -315,6 +362,7 @@ window.editSchool = async function(school) {
     
     if (result.success || res.ok) {
       showToast('✓ School updated successfully!', 'success');
+      hideEditModal();
       runQuery(); // Refresh results
     } else {
       showToast('Error: ' + (result.error || 'Failed to update school'), 'error');
@@ -325,26 +373,20 @@ window.editSchool = async function(school) {
   }
 };
 
-// Delete Operation
-window.deleteSchool = async function(schoolId, schoolName) {
-  console.log('Deleting school:', schoolId, schoolName);
+// Delete Operation - Now uses modal
+window.deleteSchool = function(schoolId, schoolName) {
+  console.log('Delete school clicked:', schoolId, schoolName);
+  showDeleteModal(schoolId, schoolName);
+};
+
+// Confirm Delete Operation
+window.confirmDelete = async function() {
+  console.log('Confirming delete for:', pendingDeleteId, pendingDeleteName);
   
-  // Use custom confirmation dialog
-  const confirmed = confirm(
-    `⚠️ Delete School?\n\n` +
-    `Are you sure you want to delete "${schoolName}"?\n\n` +
-    `This will also remove all associated:\n` +
-    `• Subjects\n` +
-    `• CCAs\n` +
-    `• Programmes\n` +
-    `• Distinctive programmes\n\n` +
-    `This action cannot be undone.`
-  );
-  
-  if (!confirmed) return;
+  if (!pendingDeleteId) return;
   
   try {
-    const res = await fetch(`/api/schools/${schoolId}`, {
+    const res = await fetch(`/api/schools/${pendingDeleteId}`, {
       method: 'DELETE'
     });
     
@@ -352,6 +394,7 @@ window.deleteSchool = async function(schoolId, schoolName) {
     
     if (result.success || res.ok) {
       showToast('✓ School deleted successfully!', 'success');
+      hideDeleteModal();
       runQuery(); // Refresh results
       loadSchoolStats();
     } else {
@@ -432,7 +475,8 @@ window.showHelp = function() {
     '3. Click Save to add to database\n\n' +
     'EDIT/DELETE:\n' +
     '1. Search for schools (General Info)\n' +
-    '2. Use Edit or Delete buttons in the results table\n\n' +
+    '2. Use Edit or Delete buttons in the results table\n' +
+    '3. Fill the form or confirm deletion in the modal\n\n' +
     'Need more help? Contact your database administrator.'
   );
 };
