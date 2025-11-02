@@ -87,11 +87,74 @@ document.addEventListener('DOMContentLoaded', () => {
         runQuery();
       }
     });
+
+    // Live Partial Search Suggestions (Universal)
+    let searchTimeout;
+    let dropdown = document.getElementById('searchSuggestions');
+    if (!dropdown) {
+      dropdown = document.createElement('div');
+      dropdown.id = 'searchSuggestions';
+      dropdown.className = 'search-results';
+      searchBox.parentElement.appendChild(dropdown);
+    }
+
+    searchBox.addEventListener('input', () => {
+      const query = searchBox.value.trim();
+      dropdown.innerHTML = '';
+      dropdown.style.display = 'none';
+      clearTimeout(searchTimeout);
+
+      if (query.length < 2) return;
+
+      searchTimeout = setTimeout(async () => {
+        try {
+          const res = await fetch(`/api/search/universal?query=${encodeURIComponent(query)}`);
+          const data = await res.json();
+          if (!data.success || !data.results) return;
+
+          const results = [
+            ...data.results.schools,
+            ...data.results.subjects,
+            ...data.results.ccas,
+            ...data.results.programmes,
+            ...data.results.distinctives
+          ];
+
+          if (results.length === 0) {
+            dropdown.innerHTML = `<div class="suggestion-item no-results">No matches found</div>`;
+          } else {
+            results.slice(0, 10).forEach((item) => {
+              const name = item.name || item.school_name || item.subject_desc || 'Unnamed';
+              const el = document.createElement('div');
+              el.className = 'suggestion-item';
+              el.textContent = name;
+              el.onclick = () => {
+                searchBox.value = name;
+                dropdown.style.display = 'none';
+                runQuery();
+              };
+              dropdown.appendChild(el);
+            });
+          }
+
+          dropdown.style.display = 'block';
+        } catch (err) {
+          console.error('Live search error:', err);
+        }
+      }, 250);
+    });
+
+    document.addEventListener('click', (e) => {
+      if (!dropdown.contains(e.target) && e.target !== searchBox) {
+        dropdown.style.display = 'none';
+      }
+    });
   }
-  
+
   // Load school statistics on page load
   loadSchoolStats();
 });
+
 
 // ========== Search Functionality ==========
 window.runQuery = async function() {
@@ -237,7 +300,459 @@ function renderTable(data, queryType) {
   html += '</tbody></table>';
   container.innerHTML = html;
 }
+// ========== ADD THESE FUNCTIONS TO script.js ==========
+// Add after your existing runQuery function, before CRUD Operations
 
+// ========== UPDATED runQuery with Universal Search Support ==========
+window.runQuery = async function() {
+  const school = document.getElementById("searchBox").value.trim();
+  const queryType = document.getElementById("queryType").value;
+
+  if (!school) {
+    showToast('Please enter a search term', 'error');
+    return;
+  }
+
+  // Show clear button
+  const clearBtn = document.getElementById('clearSearchBtn');
+  if (clearBtn) clearBtn.style.display = 'flex';
+
+  // If universal search is selected, use different endpoint
+  if (queryType === 'universal') {
+    performUniversalSearch(school);
+    return;
+  }
+
+  // Original search logic for specific queries
+  let url = "";
+  if (queryType === "all") url = `/api/schools?name=${encodeURIComponent(school)}`;
+  if (queryType === "subjects") url = `/api/schools/subjects?name=${encodeURIComponent(school)}`;
+  if (queryType === "ccas") url = `/api/schools/ccas?name=${encodeURIComponent(school)}`;
+  if (queryType === "programmes") url = `/api/schools/programmes?name=${encodeURIComponent(school)}`;
+  if (queryType === "distinctives") url = `/api/schools/distinctives?name=${encodeURIComponent(school)}`;
+
+  // Show loading spinner
+  showLoading(true);
+
+  try {
+    const res = await fetch(url);
+    const data = await res.json();
+    
+    hideLoading();
+    
+    if (data.error) {
+      showToast(data.error, 'error');
+      renderEmpty('Error loading data');
+      return;
+    }
+    
+    renderTable(data, queryType);
+    updateResultsMeta(data.length, school);
+  } catch (err) {
+    hideLoading();
+    showToast('Failed to fetch data: ' + err.message, 'error');
+    renderEmpty('Connection error');
+  }
+};
+
+// ========== Universal Search Function ==========
+async function performUniversalSearch(query) {
+  const loading = document.getElementById('loadingSpinner');
+  const results = document.getElementById('resultsTable');
+  const summary = document.getElementById('universalSearchSummary');
+  const meta = document.getElementById('resultsMeta');
+  
+  // Hide summary initially
+  if (summary) summary.style.display = 'none';
+  
+  // Show loading
+  loading.style.display = 'flex';
+  results.innerHTML = '';
+  
+  try {
+    const response = await fetch(`/api/search/universal?query=${encodeURIComponent(query)}`);
+    const data = await response.json();
+    
+    loading.style.display = 'none';
+    
+    if (!data.success) {
+      showToast(data.message || 'Search failed', 'error');
+      renderEmpty('No results found');
+      meta.textContent = `No results found for "${query}"`;
+      return;
+    }
+    
+    // Update summary
+    updateUniversalSearchSummary(data.results);
+    
+    // Render results
+    renderUniversalSearchResults(data.results, query);
+    
+    // Update meta
+    if (data.results.total === 0) {
+      meta.textContent = `No results found for "${query}"`;
+      showToast('No results found', 'info');
+    } else {
+      meta.textContent = `Found ${data.results.total} results across all categories for "${query}"`;
+      showToast(`Found ${data.results.total} results`, 'success');
+    }
+    
+  } catch (error) {
+    loading.style.display = 'none';
+    console.error('Universal search error:', error);
+    showToast('Search failed: ' + error.message, 'error');
+    renderEmpty('Connection error');
+    meta.textContent = 'Search failed';
+  }
+}
+
+// ========== Update Universal Search Summary ==========
+function updateUniversalSearchSummary(results) {
+  const summary = document.getElementById('universalSearchSummary');
+  
+  if (!summary) return;
+  
+  document.getElementById('totalResults').textContent = results.total;
+  document.getElementById('schoolResults').textContent = results.schools.length;
+  document.getElementById('subjectResults').textContent = results.subjects.length;
+  document.getElementById('ccaResults').textContent = results.ccas.length;
+  document.getElementById('programmeResults').textContent = results.programmes.length;
+  document.getElementById('distinctiveResults').textContent = results.distinctives.length;
+  
+  summary.style.display = 'block';
+}
+
+// ========== Render Universal Search Results ==========
+function renderUniversalSearchResults(results, query) {
+  const container = document.getElementById('resultsTable');
+  
+  if (results.total === 0) {
+    renderEmpty('No results found');
+    return;
+  }
+  
+  let html = '<div class="universal-results">';
+  
+  // Schools
+  if (results.schools.length > 0) {
+    html += renderCategory('schools', 'Schools', results.schools, query);
+  }
+  
+  // Subjects
+  if (results.subjects.length > 0) {
+    html += renderCategory('subjects', 'Subjects', results.subjects, query);
+  }
+  
+  // CCAs
+  if (results.ccas.length > 0) {
+    html += renderCategory('ccas', 'CCAs', results.ccas, query);
+  }
+  
+  // Programmes
+  if (results.programmes.length > 0) {
+    html += renderCategory('programmes', 'Programmes', results.programmes, query);
+  }
+  
+  // Distinctives
+  if (results.distinctives.length > 0) {
+    html += renderCategory('distinctives', 'Distinctive Programmes', results.distinctives, query);
+  }
+  
+  html += '</div>';
+  container.innerHTML = html;
+}
+
+// ========== Render Category ==========
+function renderCategory(type, title, items, query) {
+  const icons = {
+    schools: '<path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z"/>',
+    subjects: '<path d="M9 4.804A7.968 7.968 0 005.5 4c-1.255 0-2.443.29-3.5.804v10A7.969 7.969 0 015.5 14c1.669 0 3.218.51 4.5 1.385A7.962 7.962 0 0114.5 14c1.255 0 2.443.29 3.5.804v-10A7.968 7.968 0 0014.5 4c-1.255 0-2.443.29-3.5.804V12a1 1 0 11-2 0V4.804z"/>',
+    ccas: '<path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v3h8v-3zM6 8a2 2 0 11-4 0 2 2 0 014 0zM16 18v-3a5.972 5.972 0 00-.75-2.906A3.005 3.005 0 0119 15v3h-3zM4.75 12.094A5.973 5.973 0 004 15v3H1v-3a3 3 0 013.75-2.906z"/>',
+    programmes: '<path fill-rule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z"/>',
+    distinctives: '<path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>'
+  };
+  
+  let html = `
+    <div class="results-category">
+      <div class="category-header">
+        <div class="category-title">
+          <div class="category-icon ${type}">
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+              ${icons[type]}
+            </svg>
+          </div>
+          <h3>${title}</h3>
+        </div>
+        <span class="category-count">${items.length} result${items.length !== 1 ? 's' : ''}</span>
+      </div>
+      <div class="results-list">
+  `;
+  
+  items.forEach(item => {
+    html += renderResultItem(type, item, query);
+  });
+  
+  html += '</div></div>';
+  return html;
+}
+
+// ========== Render Result Item ==========
+function renderResultItem(type, item, query) {
+  const itemJson = JSON.stringify(item).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  
+  let html = `<div class="result-item" onclick='viewItemDetails("${type}", ${item.id})'>`;
+  html += '<div class="result-item-header">';
+  
+  // Title with highlighted search term
+  const highlightedName = highlightSearchTerm(item.name, query);
+  html += `<div class="result-item-title">${highlightedName}</div>`;
+  
+  html += '</div>';
+  
+  // Description
+  if (item.description) {
+    const truncatedDesc = item.description.length > 150 
+      ? item.description.substring(0, 150) + '...'
+      : item.description;
+    html += `<div class="result-item-description">${truncatedDesc}</div>`;
+  }
+  
+  // Meta tags
+  html += '<div class="result-item-meta">';
+  
+  if (type === 'school') {
+    html += `<span class="meta-tag zone-${item.zone_code.toLowerCase()}">${item.zone_code}</span>`;
+    html += `<span class="meta-tag">${item.mainlevel_code}</span>`;
+    if (item.principal_name) {
+      html += `<span class="meta-tag">
+        <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor">
+          <path fill-rule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z"/>
+        </svg>
+        ${item.principal_name}
+      </span>`;
+    }
+  } else if (item.school_count !== undefined) {
+    html += `<span class="meta-tag">
+      <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor">
+        <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z"/>
+      </svg>
+      ${item.school_count} school${item.school_count !== 1 ? 's' : ''}
+    </span>`;
+  }
+  
+  html += '</div>';
+  html += '</div>';
+  
+  return html;
+}
+
+// ========== Highlight Search Term ==========
+function highlightSearchTerm(text, searchTerm) {
+  if (!text || !searchTerm) return text;
+  
+  const regex = new RegExp(`(${searchTerm})`, 'gi');
+  return text.replace(regex, '<mark>$1</mark>');
+}
+
+// ========== View Item Details ==========
+window.viewItemDetails = async function(type, id) {
+  console.log('Viewing details for:', type, id);
+  
+  showToast('Loading details...', 'info');
+  
+  try {
+    const response = await fetch(`/api/search/details/${type}/${id}`);
+    const data = await response.json();
+    
+    if (!data.success) {
+      showToast('Failed to load details', 'error');
+      return;
+    }
+    
+    displayItemDetailsModal(type, data.data);
+    
+  } catch (error) {
+    console.error('Error loading details:', error);
+    showToast('Failed to load details: ' + error.message, 'error');
+  }
+};
+
+// ========== Display Item Details Modal ==========
+function displayItemDetailsModal(type, data) {
+  let html = '<div class="modal active" id="detailsModal">';
+  html += '<div class="modal-overlay" onclick="closeDetailsModal()"></div>';
+  html += '<div class="modal-content">';
+  html += '<div class="modal-header">';
+  html += `<h3>${getTypeTitle(type)} Details</h3>`;
+  html += '<button class="modal-close" onclick="closeDetailsModal()"><svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg></button>';
+  html += '</div>';
+  html += '<div class="detail-modal-content">';
+  
+  if (type === 'school') {
+    html += renderSchoolDetails(data);
+  } else {
+    html += renderGenericDetails(type, data);
+  }
+  
+  html += '</div>';
+  html += '</div>';
+  html += '</div>';
+  
+  document.body.insertAdjacentHTML('beforeend', html);
+  document.body.style.overflow = 'hidden';
+}
+
+// ========== Close Details Modal ==========
+window.closeDetailsModal = function() {
+  const modal = document.getElementById('detailsModal');
+  if (modal) {
+    modal.remove();
+    document.body.style.overflow = 'auto';
+  }
+};
+
+// ========== Render School Details ==========
+function renderSchoolDetails(school) {
+  return `
+    <div class="detail-header">
+      <h4 class="detail-title">${school.school_name}</h4>
+      <div class="detail-grid">
+        <div class="detail-row"><strong>Address:</strong> <span>${school.address}</span></div>
+        <div class="detail-row"><strong>Postal Code:</strong> <span>${school.postal_code}</span></div>
+        <div class="detail-row"><strong>Zone:</strong> <span class="zone-badge zone-${school.zone_code.toLowerCase()}">${school.zone_code}</span></div>
+        <div class="detail-row"><strong>Level:</strong> <span>${school.mainlevel_code}</span></div>
+        <div class="detail-row"><strong>Principal:</strong> <span>${school.principal_name}</span></div>
+      </div>
+    </div>
+    <div class="detail-stats">
+      <div class="detail-stat-item">
+        <div class="detail-stat-label">Subjects</div>
+        <div class="detail-stat-value">${school.subject_count || 0}</div>
+      </div>
+      <div class="detail-stat-item">
+        <div class="detail-stat-label">CCAs</div>
+        <div class="detail-stat-value">${school.cca_count || 0}</div>
+      </div>
+      <div class="detail-stat-item">
+        <div class="detail-stat-label">Programmes</div>
+        <div class="detail-stat-value">${school.programme_count || 0}</div>
+      </div>
+    </div>
+  `;
+}
+
+// ========== Render Generic Details ==========
+function renderGenericDetails(type, data) {
+  let html = '<div class="detail-header">';
+  
+  const mainField = getMainField(type, data);
+  html += `<h4 class="detail-title">${mainField}</h4>`;
+  html += '</div>';
+  
+  if (data.schools && Array.isArray(data.schools)) {
+    html += `<div class="school-list">`;
+    html += `<h5>Schools offering this (${data.schools.length})</h5>`;
+    html += '<div class="school-list-items">';
+    
+    data.schools.forEach(school => {
+      html += `<div class="school-list-item">`;
+      html += `<span>${school.school_name}</span>`;
+      html += `<span class="zone-badge zone-${school.zone_code.toLowerCase()}">${school.zone_code}</span>`;
+      html += '</div>';
+    });
+    
+    html += '</div>';
+    html += '</div>';
+  }
+  
+  return html;
+}
+
+// ========== Helper Functions ==========
+function getTypeTitle(type) {
+  const titles = {
+    school: 'School',
+    subject: 'Subject',
+    cca: 'CCA',
+    programme: 'Programme',
+    distinctive: 'Distinctive Programme'
+  };
+  return titles[type] || type;
+}
+
+function getMainField(type, data) {
+  if (type === 'subject') return data.subject_desc;
+  if (type === 'cca') return data.cca_generic_name;
+  if (type === 'programme') return data.moe_programme_desc;
+  if (type === 'distinctive') return data.alp_title || data.llp_title || 'Distinctive Programme';
+  return 'Details';
+}
+
+// ========== Clear Search ==========
+window.clearSearch = function() {
+  const searchBox = document.getElementById('searchBox');
+  const clearBtn = document.getElementById('clearSearchBtn');
+  const summary = document.getElementById('universalSearchSummary');
+  const results = document.getElementById('resultsTable');
+  const meta = document.getElementById('resultsMeta');
+  
+  searchBox.value = '';
+  if (clearBtn) clearBtn.style.display = 'none';
+  if (summary) summary.style.display = 'none';
+  if (meta) meta.textContent = '';
+  
+  results.innerHTML = `
+    <div class="empty-state">
+      <svg width="64" height="64" viewBox="0 0 64 64" fill="none">
+        <circle cx="32" cy="32" r="30" stroke="#E5E7EB" stroke-width="4"/>
+        <path d="M32 20v24M20 32h24" stroke="#E5E7EB" stroke-width="4" stroke-linecap="round"/>
+      </svg>
+      <h3>No search performed yet</h3>
+      <p>Try searching for a school name, subject, CCA, or programme</p>
+    </div>
+  `;
+  
+  searchBox.focus();
+};
+
+// Update the existing DOMContentLoaded to handle clear button visibility
+document.addEventListener('DOMContentLoaded', () => {
+  console.log('DOM Loaded - Attaching event listeners');
+  
+  const navBtns = document.querySelectorAll('.nav-btn');
+  console.log('Found nav buttons:', navBtns.length);
+  
+  navBtns.forEach((btn, index) => {
+    console.log(`Nav button ${index}:`, btn.dataset.view);
+    btn.addEventListener('click', () => {
+      console.log('Button clicked:', btn.dataset.view);
+      switchView(btn.dataset.view);
+    });
+  });
+  
+  // Allow Enter key to trigger search
+  const searchBox = document.getElementById('searchBox');
+  if (searchBox) {
+    searchBox.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') {
+        runQuery();
+      }
+    });
+    
+    // Show/hide clear button as user types
+    searchBox.addEventListener('input', (e) => {
+      const clearBtn = document.getElementById('clearSearchBtn');
+      if (clearBtn) {
+        clearBtn.style.display = e.target.value.trim() ? 'flex' : 'none';
+      }
+    });
+  }
+  
+  // Load school statistics on page load
+  loadSchoolStats();
+});
+
+console.log('Universal search functions integrated');
 // ========== CRUD Operations (GLOBAL) ==========
 
 // Add Modal Management

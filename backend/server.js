@@ -570,6 +570,300 @@ app.get('/api/analytics/zone-comparison', async (req, res) => {
   }
 });
 
+// Universal Search - search across all tables
+// ===== UNIVERSAL SEARCH (Simplified & Efficient) =====
+
+app.get('/api/search/universal', async (req, res) => {
+  try {
+    const { query } = req.query;
+
+    if (!query || query.trim() === '') {
+      return res.status(400).json({
+        success: false,
+        message: 'Search query is required'
+      });
+    }
+
+    const searchTerm = `%${query.trim()}%`;
+
+    // --- Schools ---
+    const schoolsQuery = `
+      SELECT 
+        'school' AS type,
+        s.school_id AS id,
+        s.school_name AS name,
+        s.address AS description,
+        s.zone_code,
+        s.mainlevel_code,
+        s.principal_name
+      FROM schools s
+      WHERE s.school_name ILIKE $1
+         OR s.address ILIKE $1
+         OR s.principal_name ILIKE $1
+      ORDER BY s.school_name;
+    `;
+
+    // --- Subjects ---
+    const subjectsQuery = `
+      SELECT 
+        'subject' AS type,
+        subj.subject_id AS id,
+        subj.subject_desc AS name,
+        STRING_AGG(DISTINCT sch.school_name, ', ') AS description,
+        COUNT(DISTINCT ss.school_id) AS school_count
+      FROM subjects subj
+      LEFT JOIN school_subjects ss ON subj.subject_id = ss.subject_id
+      LEFT JOIN schools sch ON ss.school_id = sch.school_id
+      WHERE subj.subject_desc ILIKE $1
+      GROUP BY subj.subject_id, subj.subject_desc
+      ORDER BY subj.subject_desc;
+    `;
+
+    // --- CCAs ---
+    const ccasQuery = `
+      SELECT 
+        'cca' AS type,
+        sch.school_id AS id,
+        sch.school_name AS name,
+        c.cca_generic_name AS cca_category,
+        c.cca_grouping_desc AS cca_activity,
+        sc.cca_customized_name AS cca_label,
+        sc.school_section
+      FROM CCAs c
+      JOIN School_CCAs sc ON c.cca_id = sc.cca_id
+      JOIN Schools sch ON sc.school_id = sch.school_id
+      WHERE 
+        c.cca_generic_name ILIKE $1
+        OR c.cca_grouping_desc ILIKE $1
+        OR sc.cca_customized_name ILIKE $1
+      ORDER BY sch.school_name
+    `;
+
+
+    // --- Programmes ---
+    const programmesQuery = `
+      SELECT 
+        'programme' AS type,
+        p.programme_id AS id,
+        p.moe_programme_desc AS name,
+        STRING_AGG(DISTINCT sch.school_name, ', ') AS description,
+        COUNT(DISTINCT sp.school_id) AS school_count
+      FROM programmes p
+      LEFT JOIN school_programmes sp ON p.programme_id = sp.programme_id
+      LEFT JOIN schools sch ON sp.school_id = sch.school_id
+      WHERE p.moe_programme_desc ILIKE $1
+      GROUP BY p.programme_id, p.moe_programme_desc
+      ORDER BY p.moe_programme_desc;
+    `;
+
+    // --- Distinctive Programmes (ALP / LLP) ---
+    const distinctivesQuery = `
+      SELECT 
+        'distinctive' AS type,
+        d.distinctive_id AS id,
+        COALESCE(d.alp_title, d.llp_title, 'Distinctive Programme') AS name,
+        COALESCE(d.alp_domain, d.llp_domain1, '') AS description,
+        COUNT(DISTINCT sd.school_id) AS school_count
+      FROM distinctive_programmes d
+      LEFT JOIN school_distinctives sd ON d.distinctive_id = sd.distinctive_id
+      WHERE 
+        COALESCE(d.alp_title, '') ILIKE $1 OR
+        COALESCE(d.llp_title, '') ILIKE $1 OR
+        COALESCE(d.alp_domain, '') ILIKE $1 OR
+        COALESCE(d.llp_domain1, '') ILIKE $1
+      GROUP BY d.distinctive_id, d.alp_title, d.llp_title, d.alp_domain, d.llp_domain1
+      ORDER BY COALESCE(d.alp_title, d.llp_title);
+    `;
+
+    // --- Execute all in parallel ---
+    const [schools, subjects, ccas, programmes, distinctives] = await Promise.all([
+      pool.query(schoolsQuery, [searchTerm]),
+      pool.query(subjectsQuery, [searchTerm]),
+      pool.query(ccasQuery, [searchTerm]),
+      pool.query(programmesQuery, [searchTerm]),
+      pool.query(distinctivesQuery, [searchTerm])
+    ]);
+
+    // --- Combine results ---
+    const results = {
+      schools: schools.rows,
+      subjects: subjects.rows,
+      ccas: ccas.rows,
+      programmes: programmes.rows,
+      distinctives: distinctives.rows,
+      total:
+        schools.rows.length +
+        subjects.rows.length +
+        ccas.rows.length +
+        programmes.rows.length +
+        distinctives.rows.length
+    };
+
+    // --- Optional MongoDB logging ---
+    if (typeof logActivity === 'function') {
+      logActivity('universal_search', {
+        query,
+        total_results: results.total,
+        breakdown: {
+          schools: results.schools.length,
+          subjects: results.subjects.length,
+          ccas: results.ccas.length,
+          programmes: results.programmes.length,
+          distinctives: results.distinctives.length
+        }
+      });
+    }
+
+    return res.json({
+      success: true,
+      query,
+      results
+    });
+  } catch (err) {
+    console.error('Universal search error:', err);
+    res.status(500).json({
+      success: false,
+      error: err.message
+    });
+  }
+});
+
+
+// Get details for a specific item found in universal search
+app.get('/api/search/details/:type/:id', async (req, res) => {
+  try {
+    const { type, id } = req.params;
+    let query, params;
+
+    switch (type) {
+      case 'school':
+        query = `
+          SELECT 
+            s.*,
+            COUNT(DISTINCT ss.subject_id) as subject_count,
+            COUNT(DISTINCT sc.cca_id) as cca_count,
+            COUNT(DISTINCT sp.programme_id) as programme_count
+          FROM Schools s
+          LEFT JOIN School_Subjects ss ON s.school_id = ss.school_id
+          LEFT JOIN School_CCAs sc ON s.school_id = sc.school_id
+          LEFT JOIN School_Programmes sp ON s.school_id = sp.school_id
+          WHERE s.school_id = $1
+          GROUP BY s.school_id
+        `;
+        params = [id];
+        break;
+
+      case 'subject':
+        query = `
+          SELECT 
+            s.subject_desc,
+            JSON_AGG(
+              JSON_BUILD_OBJECT(
+                'school_id', sch.school_id,
+                'school_name', sch.school_name,
+                'zone_code', sch.zone_code
+              )
+            ) as schools
+          FROM Subjects s
+          LEFT JOIN School_Subjects ss ON s.subject_id = ss.subject_id
+          LEFT JOIN Schools sch ON ss.school_id = sch.school_id
+          WHERE s.subject_id = $1
+          GROUP BY s.subject_id, s.subject_desc
+        `;
+        params = [id];
+        break;
+
+      case 'cca':
+        query = `
+          SELECT 
+            c.cca_generic_name,
+            JSON_AGG(
+              JSON_BUILD_OBJECT(
+                'school_id', sch.school_id,
+                'school_name', sch.school_name,
+                'customized_name', sc.cca_customized_name,
+                'zone_code', sch.zone_code
+              )
+            ) as schools
+          FROM CCAs c
+          LEFT JOIN School_CCAs sc ON c.cca_id = sc.cca_id
+          LEFT JOIN Schools sch ON sc.school_id = sch.school_id
+          WHERE c.cca_id = $1
+          GROUP BY c.cca_id, c.cca_generic_name
+        `;
+        params = [id];
+        break;
+
+      case 'programme':
+        query = `
+          SELECT 
+            p.moe_programme_desc,
+            JSON_AGG(
+              JSON_BUILD_OBJECT(
+                'school_id', sch.school_id,
+                'school_name', sch.school_name,
+                'zone_code', sch.zone_code
+              )
+            ) as schools
+          FROM Programmes p
+          LEFT JOIN School_Programmes sp ON p.programme_id = sp.programme_id
+          LEFT JOIN Schools sch ON sp.school_id = sch.school_id
+          WHERE p.programme_id = $1
+          GROUP BY p.programme_id, p.moe_programme_desc
+        `;
+        params = [id];
+        break;
+
+      case 'distinctive':
+        query = `
+          SELECT 
+            d.*,
+            JSON_AGG(
+              JSON_BUILD_OBJECT(
+                'school_id', sch.school_id,
+                'school_name', sch.school_name,
+                'zone_code', sch.zone_code
+              )
+            ) as schools
+          FROM Distinctive_Programmes d
+          LEFT JOIN School_Distinctives sd ON d.distinctive_id = sd.distinctive_id
+          LEFT JOIN Schools sch ON sd.school_id = sch.school_id
+          WHERE d.distinctive_id = $1
+          GROUP BY d.distinctive_id
+        `;
+        params = [id];
+        break;
+
+      default:
+        return res.status(400).json({ 
+          success: false, 
+          error: 'Invalid type' 
+        });
+    }
+
+    const result = await pool.query(query, params);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ 
+        success: false, 
+        error: 'Item not found' 
+      });
+    }
+
+    res.json({
+      success: true,
+      type: type,
+      data: result.rows[0]
+    });
+
+  } catch (err) {
+    console.error('Details fetch error:', err);
+    res.status(500).json({ 
+      success: false,
+      error: err.message 
+    });
+  }
+});
 // ========== MONGODB ANALYTICS ROUTES ==========
 
 // Get activity logs
