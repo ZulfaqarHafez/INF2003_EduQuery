@@ -481,4 +481,4 @@ window.showHelp = function() {
   );
 };
 
-console.log('✓ All functions loaded and registered globally');
+console.log('All functions loaded and registered globally');
