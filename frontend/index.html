@@ -61,65 +61,112 @@
       
       <!-- Search View -->
       <div id="searchView" class="view active">
-        <!-- Search Section -->
-        <section class="search-section">
-          <div class="search-card">
-            <h2 class="section-title">Find Schools in Singapore</h2>
-            <p class="section-subtitle">Search by school name and explore subjects, CCAs, programmes & more</p>
-            
-            <div class="search-controls">
-              <div class="search-input-wrapper">
-                <svg class="search-icon" width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
-                  <path d="M9 2a7 7 0 015.618 11.176l4.1 4.1a1 1 0 01-1.414 1.414l-4.1-4.1A7 7 0 119 2zm0 2a5 5 0 100 10 5 5 0 000-10z"/>
-                </svg>
-                <input type="text" id="searchBox" class="search-input" placeholder="Enter school name (e.g., Raffles, Anderson)">
-              </div>
-              
-              <div class="filter-group">
-                <label for="queryType" class="filter-label">Query Type</label>
-                <select id="queryType" class="filter-select">
-                  <option value="all">General Info</option>
-                  <option value="subjects">Subjects</option>
-                  <option value="ccas">CCAs</option>
-                  <option value="programmes">Programmes</option>
-                  <option value="distinctives">Distinctives (ALP/LLP)</option>
-                </select>
-              </div>
-              
-              <button onclick="runQuery()" class="btn-primary">
-                <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
-                  <path d="M9 2a7 7 0 015.618 11.176l4.1 4.1a1 1 0 01-1.414 1.414l-4.1-4.1A7 7 0 119 2zm0 2a5 5 0 100 10 5 5 0 000-10z"/>
-                </svg>
-                Search
-              </button>
-            </div>
-          </div>
-        </section>
-
-        <!-- Results Section -->
-        <section class="results-section">
-          <div class="results-header">
-            <h2 class="section-title">Results</h2>
-            <div id="resultsMeta" class="results-meta"></div>
-          </div>
-          
-          <div id="loadingSpinner" class="loading-spinner" style="display: none;">
-            <div class="spinner"></div>
-            <p>Searching database...</p>
-          </div>
-          
-          <div id="resultsTable" class="results-container">
-            <div class="empty-state">
-              <svg width="64" height="64" viewBox="0 0 64 64" fill="none">
-                <circle cx="32" cy="32" r="30" stroke="#E5E7EB" stroke-width="4"/>
-                <path d="M32 20v24M20 32h24" stroke="#E5E7EB" stroke-width="4" stroke-linecap="round"/>
-              </svg>
-              <h3>No search performed yet</h3>
-              <p>Enter a school name and select a query type to begin</p>
-            </div>
-          </div>
-        </section>
+  <!-- Search Section -->
+  <section class="search-section">
+    <div class="search-card">
+      <h2 class="section-title">Find Schools in Singapore</h2>
+      <p class="section-subtitle">Search across all schools, subjects, CCAs, programmes & distinctives</p>
+      
+      <div class="search-controls">
+        <div class="search-input-wrapper">
+          <svg class="search-icon" width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+            <path d="M9 2a7 7 0 015.618 11.176l4.1 4.1a1 1 0 01-1.414 1.414l-4.1-4.1A7 7 0 119 2zm0 2a5 5 0 100 10 5 5 0 000-10z"/>
+          </svg>
+          <input type="text" id="searchBox" class="search-input" placeholder="Search for anything (e.g., Raffles, Basketball, Science)">
+          <button id="clearSearchBtn" class="clear-search-btn" onclick="clearSearch()" style="display: none;">
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+              <path d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"/>
+            </svg>
+          </button>
+          <div id="searchSuggestions" class="search-results"></div>
+        </div>
+        
+        <div class="filter-group">
+          <label for="queryType" class="filter-label">Search Mode</label>
+          <select id="queryType" class="filter-select">
+            <option value="universal">Universal (All Categories)</option>
+            <option value="all">Schools Only</option>
+            <option value="subjects">Subjects Only</option>
+            <option value="ccas">CCAs Only</option>
+            <option value="programmes">Programmes Only</option>
+            <option value="distinctives">Distinctives Only</option>
+          </select>
+        </div>
+        
+        <button onclick="runQuery()" class="btn-primary">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+            <path d="M9 2a7 7 0 015.618 11.176l4.1 4.1a1 1 0 01-1.414 1.414l-4.1-4.1A7 7 0 119 2zm0 2a5 5 0 100 10 5 5 0 000-10z"/>
+          </svg>
+          Search
+        </button>
       </div>
+
+      <!-- Search Tips -->
+      <div class="search-tips">
+        <div class="tip-item">
+          <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
+            <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"/>
+          </svg>
+          <span><strong>Universal Search</strong> searches everything at once - perfect for exploring!</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Results Section -->
+  <section class="results-section">
+    <div class="results-header">
+      <h2 class="section-title">Results</h2>
+      <div id="resultsMeta" class="results-meta"></div>
+    </div>
+    
+    <!-- Universal Search Summary -->
+    <div id="universalSearchSummary" class="search-summary" style="display: none;">
+      <div class="summary-stats">
+        <div class="summary-stat">
+          <span class="stat-label">Total Results</span>
+          <span class="stat-value" id="totalResults">0</span>
+        </div>
+        <div class="summary-stat">
+          <span class="stat-label">Schools</span>
+          <span class="stat-value" id="schoolResults">0</span>
+        </div>
+        <div class="summary-stat">
+          <span class="stat-label">Subjects</span>
+          <span class="stat-value" id="subjectResults">0</span>
+        </div>
+        <div class="summary-stat">
+          <span class="stat-label">CCAs</span>
+          <span class="stat-value" id="ccaResults">0</span>
+        </div>
+        <div class="summary-stat">
+          <span class="stat-label">Programmes</span>
+          <span class="stat-value" id="programmeResults">0</span>
+        </div>
+        <div class="summary-stat">
+          <span class="stat-label">Distinctives</span>
+          <span class="stat-value" id="distinctiveResults">0</span>
+        </div>
+      </div>
+    </div>
+    
+    <div id="loadingSpinner" class="loading-spinner" style="display: none;">
+      <div class="spinner"></div>
+      <p>Searching database...</p>
+    </div>
+    
+    <div id="resultsTable" class="results-container">
+      <div class="empty-state">
+        <svg width="64" height="64" viewBox="0 0 64 64" fill="none">
+          <circle cx="32" cy="32" r="30" stroke="#E5E7EB" stroke-width="4"/>
+          <path d="M32 20v24M20 32h24" stroke="#E5E7EB" stroke-width="4" stroke-linecap="round"/>
+        </svg>
+        <h3>No search performed yet</h3>
+        <p>Try searching for a school name, subject, CCA, or programme</p>
+      </div>
+    </div>
+  </section>
+</div>
 
       <!-- Manage View -->
       <div id="manageView" class="view">
@@ -436,6 +483,7 @@
 
         </section>
       </div>
+  
 
     </div>
   </main>
@@ -652,12 +700,11 @@
   <!-- Leaflet JS -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   
-  <!-- Main Script -->
-  <script src="script.js"></script>
   
   <!-- Map Script -->
   <script src="map.js"></script>
-  
+    <!-- Main Script -->
+  <script src="script.js"></script>
   <!-- Analytics Script -->
   <script src="analytics.js"></script>
 </body>
