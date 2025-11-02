@@ -12,9 +12,26 @@ app.use(express.static(path.join(__dirname, '../frontend')));
 
 const port = process.env.PORT || 3000;
 
+// ========== MONGODB ACTIVITY LOGGER ==========
+async function logActivity(action, data) {
+  try {
+    const db = await connectMongo();
+    await db.collection('activity_logs').insertOne({
+      timestamp: new Date(),
+      action: action,
+      data: data
+    });
+  } catch (err) {
+    console.error('Failed to log activity:', err);
+    // Don't throw error - logging shouldn't break the main functionality
+  }
+}
+
+// ========== ROOT & TEST ROUTES ==========
+
 // Root Route
 app.get('/', (req, res) => {
-  res.send('EduQuery API is running');
+  res.sendFile(path.join(__dirname, '../frontend/index.html'));
 });
 
 // Database Test Routes
@@ -37,7 +54,7 @@ app.get('/mongo-test', async (req, res) => {
   }
 });
 
-// CRUD Operations for Schools 
+// ========== CRUD OPERATIONS FOR SCHOOLS ==========
 
 // READ - Get all schools or search by name
 app.get('/api/schools', async (req, res) => {
@@ -181,7 +198,7 @@ app.delete('/api/schools/:id', async (req, res) => {
   }
 });
 
-// Read-Only Query Routes 
+// ========== READ-ONLY QUERY ROUTES ==========
 
 // School subjects
 app.get('/api/schools/subjects', async (req, res) => {
@@ -271,7 +288,289 @@ app.get('/api/schools/distinctives', async (req, res) => {
   }
 });
 
-// ========== Analytics Routes (MongoDB) ==========
+// ========== ANALYTICS ENDPOINTS ==========
+
+// 1. Schools by Zone with Statistics
+app.get('/api/analytics/schools-by-zone', async (req, res) => {
+  try {
+    const query = `
+      SELECT 
+        zone_code,
+        COUNT(*) as total_schools,
+        COUNT(DISTINCT mainlevel_code) as school_types,
+        ROUND(AVG(LENGTH(address))::numeric, 2) as avg_address_length
+      FROM Schools
+      GROUP BY zone_code
+      ORDER BY total_schools DESC
+    `;
+    
+    const result = await pool.query(query);
+    
+    logActivity('view_zone_statistics', { 
+      zones_analyzed: result.rows.length 
+    });
+    
+    res.json({
+      success: true,
+      data: result.rows
+    });
+  } catch (err) {
+    console.error('Zone statistics error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 2. Schools with Subject Count
+app.get('/api/analytics/schools-subject-count', async (req, res) => {
+  try {
+    const query = `
+      SELECT 
+        s.school_id,
+        s.school_name,
+        s.zone_code,
+        s.mainlevel_code,
+        COUNT(ss.subject_id) as subject_count,
+        CASE 
+          WHEN COUNT(ss.subject_id) > 10 THEN 'High'
+          WHEN COUNT(ss.subject_id) > 5 THEN 'Medium'
+          ELSE 'Low'
+        END as subject_diversity
+      FROM Schools s
+      LEFT JOIN School_Subjects ss ON s.school_id = ss.school_id
+      GROUP BY s.school_id, s.school_name, s.zone_code, s.mainlevel_code
+      HAVING COUNT(ss.subject_id) > 0
+      ORDER BY subject_count DESC
+      LIMIT 20
+    `;
+    
+    const result = await pool.query(query);
+    
+    logActivity('view_subject_diversity', { 
+      schools_analyzed: result.rows.length 
+    });
+    
+    res.json({
+      success: true,
+      data: result.rows,
+      summary: {
+        total_schools: result.rows.length,
+        avg_subjects: result.rows.length > 0 
+          ? (result.rows.reduce((sum, row) => sum + parseInt(row.subject_count), 0) / result.rows.length).toFixed(2)
+          : 0
+      }
+    });
+  } catch (err) {
+    console.error('Subject count error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 3. Schools Offering More Subjects Than Average
+app.get('/api/analytics/above-average-subjects', async (req, res) => {
+  try {
+    const query = `
+      WITH subject_counts AS (
+        SELECT 
+          s.school_id,
+          s.school_name,
+          s.zone_code,
+          COUNT(ss.subject_id) as subject_count
+        FROM Schools s
+        LEFT JOIN School_Subjects ss ON s.school_id = ss.school_id
+        GROUP BY s.school_id, s.school_name, s.zone_code
+      ),
+      avg_subjects AS (
+        SELECT AVG(subject_count) as avg_count
+        FROM subject_counts
+        WHERE subject_count > 0
+      )
+      SELECT 
+        sc.school_name,
+        sc.zone_code,
+        sc.subject_count,
+        ROUND(a.avg_count::numeric, 2) as system_average,
+        ROUND((sc.subject_count - a.avg_count)::numeric, 2) as difference
+      FROM subject_counts sc, avg_subjects a
+      WHERE sc.subject_count > a.avg_count
+      ORDER BY sc.subject_count DESC
+    `;
+    
+    const result = await pool.query(query);
+    
+    logActivity('view_above_average_schools', { 
+      schools_found: result.rows.length 
+    });
+    
+    res.json({
+      success: true,
+      data: result.rows,
+      message: `Found ${result.rows.length} schools with above-average subject offerings`
+    });
+  } catch (err) {
+    console.error('Above average query error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 4. CCA Participation Analysis
+app.get('/api/analytics/cca-participation', async (req, res) => {
+  try {
+    const query = `
+      SELECT 
+        c.cca_generic_name,
+        COUNT(DISTINCT sc.school_id) as school_count,
+        COUNT(sc.cca_id) as total_offerings,
+        STRING_AGG(DISTINCT s.zone_code, ', ') as zones_offered,
+        ROUND(COUNT(DISTINCT sc.school_id) * 100.0 / 
+          (SELECT COUNT(DISTINCT school_id) FROM Schools), 2) as percentage_of_schools
+      FROM CCAs c
+      JOIN School_CCAs sc ON c.cca_id = sc.cca_id
+      JOIN Schools s ON sc.school_id = s.school_id
+      GROUP BY c.cca_id, c.cca_generic_name
+      HAVING COUNT(DISTINCT sc.school_id) >= 3
+      ORDER BY school_count DESC
+      LIMIT 15
+    `;
+    
+    const result = await pool.query(query);
+    
+    logActivity('view_cca_participation', { 
+      ccas_analyzed: result.rows.length 
+    });
+    
+    res.json({
+      success: true,
+      data: result.rows
+    });
+  } catch (err) {
+    console.error('CCA participation error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 5. Data Completeness
+app.get('/api/analytics/data-completeness', async (req, res) => {
+  try {
+    const query = `
+      SELECT 
+        s.school_id,
+        s.school_name,
+        s.zone_code,
+        s.mainlevel_code,
+        COUNT(DISTINCT ss.subject_id) as subject_count,
+        COUNT(DISTINCT sc.cca_id) as cca_count,
+        COUNT(DISTINCT sp.programme_id) as programme_count,
+        COUNT(DISTINCT sd.distinctive_id) as distinctive_count,
+        (
+          CASE WHEN COUNT(DISTINCT ss.subject_id) > 0 THEN 25 ELSE 0 END +
+          CASE WHEN COUNT(DISTINCT sc.cca_id) > 0 THEN 25 ELSE 0 END +
+          CASE WHEN COUNT(DISTINCT sp.programme_id) > 0 THEN 25 ELSE 0 END +
+          CASE WHEN COUNT(DISTINCT sd.distinctive_id) > 0 THEN 25 ELSE 0 END
+        ) as completeness_score,
+        CASE 
+          WHEN (
+            CASE WHEN COUNT(DISTINCT ss.subject_id) > 0 THEN 25 ELSE 0 END +
+            CASE WHEN COUNT(DISTINCT sc.cca_id) > 0 THEN 25 ELSE 0 END +
+            CASE WHEN COUNT(DISTINCT sp.programme_id) > 0 THEN 25 ELSE 0 END +
+            CASE WHEN COUNT(DISTINCT sd.distinctive_id) > 0 THEN 25 ELSE 0 END
+          ) = 100 THEN 'Complete'
+          WHEN (
+            CASE WHEN COUNT(DISTINCT ss.subject_id) > 0 THEN 25 ELSE 0 END +
+            CASE WHEN COUNT(DISTINCT sc.cca_id) > 0 THEN 25 ELSE 0 END +
+            CASE WHEN COUNT(DISTINCT sp.programme_id) > 0 THEN 25 ELSE 0 END +
+            CASE WHEN COUNT(DISTINCT sd.distinctive_id) > 0 THEN 25 ELSE 0 END
+          ) >= 75 THEN 'Good'
+          WHEN (
+            CASE WHEN COUNT(DISTINCT ss.subject_id) > 0 THEN 25 ELSE 0 END +
+            CASE WHEN COUNT(DISTINCT sc.cca_id) > 0 THEN 25 ELSE 0 END +
+            CASE WHEN COUNT(DISTINCT sp.programme_id) > 0 THEN 25 ELSE 0 END +
+            CASE WHEN COUNT(DISTINCT sd.distinctive_id) > 0 THEN 25 ELSE 0 END
+          ) >= 50 THEN 'Fair'
+          ELSE 'Incomplete'
+        END as completeness_status
+      FROM Schools s
+      LEFT JOIN School_Subjects ss ON s.school_id = ss.school_id
+      LEFT JOIN School_CCAs sc ON s.school_id = sc.school_id
+      LEFT JOIN School_Programmes sp ON s.school_id = sp.school_id
+      LEFT JOIN School_Distinctives sd ON s.school_id = sd.school_id
+      GROUP BY s.school_id, s.school_name, s.zone_code, s.mainlevel_code
+      ORDER BY completeness_score DESC, subject_count DESC
+      LIMIT 50
+    `;
+    
+    const result = await pool.query(query);
+    
+    const summary = {
+      total_analyzed: result.rows.length,
+      complete_schools: result.rows.filter(r => r.completeness_status === 'Complete').length,
+      good_schools: result.rows.filter(r => r.completeness_status === 'Good').length,
+      fair_schools: result.rows.filter(r => r.completeness_status === 'Fair').length,
+      incomplete_schools: result.rows.filter(r => r.completeness_status === 'Incomplete').length
+    };
+    
+    logActivity('view_data_completeness', summary);
+    
+    res.json({
+      success: true,
+      data: result.rows,
+      summary: summary
+    });
+  } catch (err) {
+    console.error('Data completeness error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 6. Zone Comparison Analysis
+app.get('/api/analytics/zone-comparison', async (req, res) => {
+  try {
+    const query = `
+      SELECT 
+        s.zone_code,
+        COUNT(DISTINCT s.school_id) as total_schools,
+        COUNT(DISTINCT s.mainlevel_code) as school_types,
+        COUNT(DISTINCT ss.subject_id) as unique_subjects,
+        COUNT(DISTINCT sc.cca_id) as unique_ccas,
+        COUNT(DISTINCT sp.programme_id) as unique_programmes,
+        ROUND(AVG(subj_count.cnt)::numeric, 2) as avg_subjects_per_school,
+        ROUND(AVG(cca_count.cnt)::numeric, 2) as avg_ccas_per_school,
+        MAX(subj_count.cnt) as max_subjects,
+        MIN(CASE WHEN subj_count.cnt > 0 THEN subj_count.cnt END) as min_subjects
+      FROM Schools s
+      LEFT JOIN School_Subjects ss ON s.school_id = ss.school_id
+      LEFT JOIN School_CCAs sc ON s.school_id = sc.school_id
+      LEFT JOIN School_Programmes sp ON s.school_id = sp.school_id
+      LEFT JOIN (
+        SELECT school_id, COUNT(*) as cnt
+        FROM School_Subjects
+        GROUP BY school_id
+      ) subj_count ON s.school_id = subj_count.school_id
+      LEFT JOIN (
+        SELECT school_id, COUNT(*) as cnt
+        FROM School_CCAs
+        GROUP BY school_id
+      ) cca_count ON s.school_id = cca_count.school_id
+      GROUP BY s.zone_code
+      ORDER BY total_schools DESC
+    `;
+    
+    const result = await pool.query(query);
+    
+    logActivity('view_zone_comparison', { 
+      zones: result.rows.length 
+    });
+    
+    res.json({
+      success: true,
+      data: result.rows
+    });
+  } catch (err) {
+    console.error('Zone comparison error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ========== MONGODB ANALYTICS ROUTES ==========
 
 // Get activity logs
 app.get('/api/analytics/logs', async (req, res) => {
@@ -311,30 +610,28 @@ app.get('/api/analytics/popular', async (req, res) => {
   }
 });
 
-//  MongoDB Activity Logger 
-async function logActivity(action, data) {
-  try {
-    const db = await connectMongo();
-    await db.collection('activity_logs').insertOne({
-      timestamp: new Date(),
-      action: action,
-      data: data
-    });
-  } catch (err) {
-    console.error('Failed to log activity:', err);
-    // Don't throw error - logging shouldn't break the main functionality
-  }
-}
+// ========== ERROR HANDLING ==========
 
-//  Error Handling 
 app.use((err, req, res, next) => {
   console.error('Server error:', err);
   res.status(500).json({ error: 'Internal server error' });
 });
 
-//  Start Server 
+// ========== START SERVER ==========
+
 app.listen(port, () => {
   console.log(`Server running at http://localhost:${port}`);
   console.log(`PostgreSQL: Connected via Session Pooler`);
   console.log(`MongoDB: Ready for activity logging`);
+  console.log(`\nAvailable endpoints:`);
+  console.log(`  GET  /api/schools - List/search schools`);
+  console.log(`  POST /api/schools - Create school`);
+  console.log(`  PUT  /api/schools/:id - Update school`);
+  console.log(`  DEL  /api/schools/:id - Delete school`);
+  console.log(`  GET  /api/analytics/schools-by-zone`);
+  console.log(`  GET  /api/analytics/schools-subject-count`);
+  console.log(`  GET  /api/analytics/above-average-subjects`);
+  console.log(`  GET  /api/analytics/cca-participation`);
+  console.log(`  GET  /api/analytics/data-completeness`);
+  console.log(`  GET  /api/analytics/zone-comparison`);
 });
