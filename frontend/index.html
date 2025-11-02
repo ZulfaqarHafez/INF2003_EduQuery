@@ -4,7 +4,15 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>EduQuery SG - Singapore Schools Database</title>
+  
+  <!-- Leaflet CSS for Map -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  
+  <!-- Main Styles -->
   <link rel="stylesheet" href="style.css">
+  
+  <!-- Map Styles -->
+  <link rel="stylesheet" href="map_style.css">
 </head>
 <body>
   <!-- Header -->
@@ -12,10 +20,6 @@
     <div class="container">
       <div class="header-content">
         <div class="logo">
-          <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
-            <rect width="32" height="32" rx="8" fill="#0066FF"/>
-            <path d="M16 8L22 12V20L16 24L10 20V12L16 8Z" fill="white"/>
-          </svg>
           <h1>EduQuery SG</h1>
         </div>
         <nav class="nav">
@@ -25,13 +29,13 @@
             </svg>
             Search
           </button>
-          <button class="nav-btn" data-view="manage" onclick="switchView('manage')">
+          <button class="nav-btn" data-view="manage">
             <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
               <path d="M3 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z"/>
             </svg>
             Manage
           </button>
-          <button class="nav-btn" onclick="window.location.href='map.html'">
+          <button class="nav-btn" data-view="map">
             <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
               <path d="M17.919 4.633l-4.553 4.553-2.359-2.359 4.553-4.553c.649-.649 1.701-.649 2.359 0 .649.649.649 1.701 0 2.359zM2 11.793V16h4.207l7.921-7.921-4.207-4.207L2 11.793z"/>
             </svg>
@@ -166,6 +170,110 @@
             <div>
               <h4>Database Management</h4>
               <p>Add new schools to the EduQuery database. All fields are required to ensure data integrity. Changes are saved immediately to both PostgreSQL and MongoDB.</p>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <!-- Map View -->
+      <div id="mapView" class="view">
+        <section class="map-container">
+          <h2 class="section-title">Singapore Schools Map</h2>
+          <p class="section-subtitle">Interactive map showing all schools by location</p>
+          
+          <!-- Statistics -->
+          <div class="map-stats">
+            <div class="map-stat">
+              <div class="map-stat-label">Total Schools</div>
+              <div class="map-stat-value" id="totalSchoolsMap">0</div>
+            </div>
+            <div class="map-stat">
+              <div class="map-stat-label">Mapped Schools</div>
+              <div class="map-stat-value" id="mappedSchools">0</div>
+            </div>
+            <div class="map-stat">
+              <div class="map-stat-label">Selected Zone</div>
+              <div class="map-stat-value" id="selectedZone">All</div>
+            </div>
+          </div>
+
+          <!-- Filter Chips -->
+          <div class="filter-chips">
+            <div class="chip active" data-zone="all">All Zones</div>
+            <div class="chip" data-zone="NORTH">North</div>
+            <div class="chip" data-zone="SOUTH">South</div>
+            <div class="chip" data-zone="EAST">East</div>
+            <div class="chip" data-zone="WEST">West</div>
+            <div class="chip" data-zone="CENTRAL">Central</div>
+          </div>
+
+          <!-- Search Box -->
+          <div class="map-search-container">
+            <div class="search-input-wrapper">
+              <svg class="search-icon" width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+                <path d="M9 2a7 7 0 015.618 11.176l4.1 4.1a1 1 0 01-1.414 1.414l-4.1-4.1A7 7 0 119 2zm0 2a5 5 0 100 10 5 5 0 000-10z"/>
+              </svg>
+              <input type="text" id="mapSearchBox" class="search-input" placeholder="Search for a school..." onkeyup="searchSchoolsOnMap(event)">
+              <button id="clearSearchBtn" class="clear-search-btn" onclick="clearMapSearch()" style="display: none;">
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+                  <path d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"/>
+                </svg>
+              </button>
+            </div>
+            <div id="searchResults" class="search-results"></div>
+          </div>
+
+          <!-- Map Controls -->
+          <div class="map-controls">
+            <button class="btn-primary" onclick="loadSchoolsMap()">
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+                <path d="M4 4a2 2 0 00-2 2v8a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-5L9 2H4z"/>
+              </svg>
+              Refresh Map
+            </button>
+            <button class="btn-secondary" onclick="resetMapView()">
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+                <path d="M10 18a8 8 0 100-16 8 8 0 000 16zM10 5v5l3.28 1.97-.52.87L9 10.5V5h1z"/>
+              </svg>
+              Reset View
+            </button>
+          </div>
+
+          <!-- Map -->
+          <div style="position: relative;">
+            <div id="map"></div>
+            <div id="mapLoading" class="loading-overlay" style="display: none;">
+              <div class="loading-spinner">
+                <div class="spinner"></div>
+                <p>Loading school locations...</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Legend -->
+        <section class="map-container">
+          <h3 style="margin-bottom: 16px;">Map Legend</h3>
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px;">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <div style="width: 20px; height: 20px; background: #3B82F6; border-radius: 50%;"></div>
+              <span>North Zone</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <div style="width: 20px; height: 20px; background: #10B981; border-radius: 50%;"></div>
+              <span>South Zone</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <div style="width: 20px; height: 20px; background: #F59E0B; border-radius: 50%;"></div>
+              <span>East Zone</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <div style="width: 20px; height: 20px; background: #EF4444; border-radius: 50%;"></div>
+              <span>West Zone</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <div style="width: 20px; height: 20px; background: #8B5CF6; border-radius: 50%;"></div>
+              <span>Central Zone</span>
             </div>
           </div>
         </section>
@@ -364,81 +472,6 @@
     </div>
   </div>
 
-  <!-- Edit School Modal -->
-  <div id="editModal" class="modal">
-    <div class="modal-overlay" onclick="hideEditModal()"></div>
-    <div class="modal-content">
-      <div class="modal-header">
-        <h3>Edit School</h3>
-        <button class="modal-close" onclick="hideEditModal()">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
-          </svg>
-        </button>
-      </div>
-      
-      <form id="editSchoolForm" onsubmit="updateSchool(event)">
-        <input type="hidden" id="editSchoolId">
-        
-        <div class="form-grid">
-          <div class="form-group">
-            <label for="editSchoolName">School Name *</label>
-            <input type="text" id="editSchoolName" required placeholder="e.g., Anderson Secondary School">
-          </div>
-
-          <div class="form-group">
-            <label for="editPrincipalName">Principal Name *</label>
-            <input type="text" id="editPrincipalName" required placeholder="e.g., Mrs. Tan Bee Leng">
-          </div>
-
-          <div class="form-group full-width">
-            <label for="editAddress">Address *</label>
-            <input type="text" id="editAddress" required placeholder="e.g., 4650 Ang Mo Kio Avenue 6">
-          </div>
-
-          <div class="form-group">
-            <label for="editPostalCode">Postal Code *</label>
-            <input type="text" id="editPostalCode" required pattern="[0-9]{6}" placeholder="e.g., 569842">
-            <span class="form-hint">6 digits</span>
-          </div>
-
-          <div class="form-group">
-            <label for="editZoneCode">Zone Code *</label>
-            <select id="editZoneCode" required>
-              <option value="">Select zone...</option>
-              <option value="NORTH">North</option>
-              <option value="SOUTH">South</option>
-              <option value="EAST">East</option>
-              <option value="WEST">West</option>
-              <option value="CENTRAL">Central</option>
-            </select>
-          </div>
-
-          <div class="form-group full-width">
-            <label for="editMainlevelCode">Main Level *</label>
-            <select id="editMainlevelCode" required>
-              <option value="">Select level...</option>
-              <option value="PRIMARY">Primary</option>
-              <option value="SECONDARY">Secondary</option>
-              <option value="JUNIOR COLLEGE">Junior College</option>
-              <option value="CENTRALISED INSTITUTE">Centralised Institute</option>
-            </select>
-          </div>
-        </div>
-
-        <div class="modal-footer">
-          <button type="button" class="btn-secondary" onclick="hideEditModal()">Cancel</button>
-          <button type="submit" class="btn-primary">
-            <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
-              <path d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"/>
-            </svg>
-            Update School
-          </button>
-        </div>
-      </form>
-    </div>
-  </div>
-
   <!-- Toast Notification -->
   <div id="toast" class="toast">
     <div class="toast-content">
@@ -458,6 +491,13 @@
     </div>
   </footer>
 
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  
+  <!-- Main Script -->
   <script src="script.js"></script>
+  
+  <!-- Map Script -->
+  <script src="map.js"></script>
 </body>
 </html>
