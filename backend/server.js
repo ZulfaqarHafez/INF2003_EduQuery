@@ -198,6 +198,97 @@ app.delete('/api/schools/:id', async (req, res) => {
   }
 });
 
+// Get school subjects by ID
+app.get('/api/schools/:id/subjects', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const result = await pool.query(`
+            SELECT DISTINCT subj.subject_desc
+            FROM school_subjects ss
+            JOIN subjects subj ON ss.subject_id = subj.subject_id
+            WHERE ss.school_id = $1
+            AND subj.subject_desc IS NOT NULL
+            AND TRIM(subj.subject_desc) != ''
+            AND UPPER(subj.subject_desc) NOT IN ('NA', 'N/A', 'NIL', 'NONE', '-')
+            ORDER BY subj.subject_desc
+        `, [id]);
+        
+        res.json(result.rows);
+    } catch (err) {
+        console.error('Get school subjects error:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Get school CCAs by ID
+app.get('/api/schools/:id/ccas', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const result = await pool.query(`
+            SELECT 
+                c.cca_generic_name,
+                c.cca_grouping_desc,
+                sc.cca_customized_name,
+                sc.school_section
+            FROM school_ccas sc
+            JOIN ccas c ON sc.cca_id = c.cca_id
+            WHERE sc.school_id = $1
+            AND c.cca_generic_name IS NOT NULL
+            AND TRIM(c.cca_generic_name) != ''
+            ORDER BY c.cca_grouping_desc, c.cca_generic_name
+        `, [id]);
+        
+        res.json(result.rows);
+    } catch (err) {
+        console.error('Get school CCAs error:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Get school programmes by ID
+app.get('/api/schools/:id/programmes', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const result = await pool.query(`
+            SELECT DISTINCT p.moe_programme_desc
+            FROM school_programmes sp
+            JOIN programmes p ON sp.programme_id = p.programme_id
+            WHERE sp.school_id = $1
+            AND p.moe_programme_desc IS NOT NULL
+            AND TRIM(p.moe_programme_desc) != ''
+            ORDER BY p.moe_programme_desc
+        `, [id]);
+        
+        res.json(result.rows);
+    } catch (err) {
+        console.error('Get school programmes error:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Get school distinctive programmes by ID
+app.get('/api/schools/:id/distinctives', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const result = await pool.query(`
+            SELECT DISTINCT
+                d.alp_domain,
+                d.alp_title,
+                d.llp_domain1,
+                d.llp_title
+            FROM school_distinctives sd
+            JOIN distinctive_programmes d ON sd.distinctive_id = d.distinctive_id
+            WHERE sd.school_id = $1
+            ORDER BY d.alp_title, d.llp_title
+        `, [id]);
+        
+        res.json(result.rows);
+    } catch (err) {
+        console.error('Get school distinctives error:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // ========== GET SCHOOL DETAILS BY ID ==========
 app.get('/api/schools/:id/details', async (req, res) => {
   try {

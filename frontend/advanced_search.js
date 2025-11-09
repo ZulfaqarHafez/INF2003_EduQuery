@@ -156,79 +156,74 @@ function runAdvancedQuery(event) {
 }
 
 function displayAdvancedSearchResults(results, criteria) {
-  const criteriaList = Object.entries(criteria)
-    .map(([key, value]) => `<strong>${key.replace(/_/g, ' ')}</strong>: ${value}`)
-    .join(' • ');
-  
-  let html = `
-    <div style="margin-bottom: 1em; padding: 0.75em; background: #EFF6FF; border-left: 0.25em solid #3B82F6; border-radius: 0.25em;">
-      <div style="font-size: 0.875em; color: #1E40AF;">
-        <strong>Search Criteria (${Object.keys(criteria).length}):</strong>
-      </div>
-      <div style="margin-top: 0.5em; font-size: 0.875em; color: #374151;">
-        ${criteriaList}
-      </div>
-    </div>
-    <div style="overflow-x: auto;">
-      <table class="data-table">
-        <thead>
-          <tr>
-            <th>School Name</th>
-            <th>Principal</th>
-            <th>VP(s)</th>
-            <th>Email</th>
-            <th>Zone</th>
-            <th>Level</th>
-            <th>Type</th>
-            <th>Indicators</th>
-            <th>Transport</th>
-          </tr>
-        </thead>
-        <tbody>
-  `;
-  
-  results.forEach(school => {
-    // Collect VPs
-    const vps = [];
-    if (school.first_vp_name) vps.push(school.first_vp_name);
-    if (school.second_vp_name) vps.push(school.second_vp_name);
-    const vpDisplay = vps.length > 0 ? vps.join(', ') : 'N/A';
+    // Display criteria used
+    const criteriaList = Object.entries(criteria)
+        .map(([key, value]) => `<strong>${key.replace(/_/g, ' ')}</strong>: ${value}`)
+        .join('<br>');
     
-    // Collect indicators
-    const indicators = [];
-    if (school.autonomous_ind === 'Yes') indicators.push('🏫 Auto');
-    if (school.gifted_ind === 'Yes') indicators.push('🎯 Gifted');
-    if (school.ip_ind === 'Yes') indicators.push('📚 IP');
-    if (school.sap_ind === 'Yes') indicators.push('🇨🇳 SAP');
+    let html = `
+        <div style="margin-bottom: 1em; padding: 0.75em; background: #EFF6FF; border-left: 0.25em solid #3B82F6; border-radius: 0.25em;">
+            <div style="font-size: 0.875em; color: #1E40AF;"><strong>Search Criteria (${Object.keys(criteria).length})</strong></div>
+            <div style="margin-top: 0.5em; font-size: 0.875em; color: #374151;">${criteriaList}</div>
+        </div>
+        <div style="overflow-x: auto;">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>School Name</th>
+                        <th>Zone Code</th>
+                        <th>Level</th>
+                        <th>Search Category</th>
+                    </tr>
+                </thead>
+                <tbody>
+    `;
     
-    // Collect transport
-    const transport = [];
-    if (school.mrt_desc) transport.push(`🚇 ${school.mrt_desc}`);
-    if (school.bus_desc) transport.push(`🚌 ${school.bus_desc.substring(0, 20)}...`);
-    const transportDisplay = transport.length > 0 ? transport.join('<br>') : '-';
+    results.forEach(school => {
+        // Determine search category based on criteria
+        let searchCategory = 'General';
+        
+        // CCA searches - show CCA NAME, not category
+        if (criteria.ccagenericname && school.cca_generic_name) {
+            searchCategory = `CCA: ${school.cca_generic_name}`;
+        } else if (criteria.ccacustomizedname && school.cca_generic_name) {
+            searchCategory = `CCA: ${school.cca_generic_name}`;
+        } else if (criteria.ccagroupingdesc && school.cca_generic_name) {
+            searchCategory = `CCA: ${school.cca_generic_name}`;
+        }
+        // Subject searches
+        else if (criteria.subjectdesc && school.subject_desc) {
+            searchCategory = `Subject: ${school.subject_desc}`;
+        }
+        // Programme searches
+        else if (criteria.moeprogrammedesc && school.moe_programme_desc) {
+            searchCategory = `Programme: ${school.moe_programme_desc}`;
+        }
+        // Distinctive - show "ALP" or "LLP" only
+        else if ((criteria.alpdomain || criteria.alptitle) && (school.alp_domain || school.alp_title)) {
+            searchCategory = 'ALP';
+        } else if ((criteria.llpdomain1 || criteria.llptitle) && (school.llp_domain1 || school.llp_title)) {
+            searchCategory = 'LLP';
+        }
+        
+        // Make row clickable with school ID
+        html += `
+            <tr class="clickable-row" onclick="viewItemDetails('schools', ${school.school_id})" style="cursor: pointer;">
+                <td><strong>${school.school_name || 'N/A'}</strong></td>
+                <td><span class="badge">${school.zone_code || 'N/A'}</span></td>
+                <td>${school.mainlevel_code || 'N/A'}</td>
+                <td>${searchCategory}</td>
+            </tr>
+        `;
+    });
     
     html += `
-      <tr>
-        <td><strong>${school.school_name}</strong></td>
-        <td>${school.principal_name || 'N/A'}</td>
-        <td style="font-size: 0.75em;">${vpDisplay}</td>
-        <td style="font-size: 0.75em;">${school.email_address || 'N/A'}</td>
-        <td><span class="badge">${school.zone_code || 'N/A'}</span></td>
-        <td>${school.mainlevel_code || 'N/A'}</td>
-        <td>${school.type_code || 'N/A'}</td>
-        <td style="font-size: 0.75em;">${indicators.length > 0 ? indicators.join(' ') : '-'}</td>
-        <td style="font-size: 0.75em;">${transportDisplay}</td>
-      </tr>
+                </tbody>
+            </table>
+        </div>
     `;
-  });
-  
-  html += `
-        </tbody>
-      </table>
-    </div>
-  `;
-  
-  document.getElementById('resultsTable').innerHTML = html;
+    
+    document.getElementById('resultsTable').innerHTML = html;
 }
 
 // Helper function to show toast notifications

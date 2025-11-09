@@ -658,44 +658,39 @@ function highlightSearchTerm(text, searchTerm) {
 
 // ========== View Item Details ==========
 window.viewItemDetails = async function(type, id) {
-  console.log('Viewing details for:', type, id);
-  
-  if (!id) {
-    showToast('Invalid item ID', 'error');
-    return;
-  }
-  
-  showToast('Loading details...', 'info');
-  
-  try {
-    let response;
+    console.log('Viewing details for:', type, id);
     
-    // Use different endpoint for schools
-    if (type === 'schools') {
-      response = await fetch(`/api/schools/${id}/details`);
-    } else if (type === 'ccas' || type === 'subjects' || type === 'programmes' || type === 'distinctives') {
-      // For non-school items, we need to handle them differently
-      response = await fetch(`/api/schools/${id}/details`);
-    } else {
-      response = await fetch(`/api/search/details/${type}/${id}`);
+    if (!id) {
+        showToast('Invalid item ID', 'error');
+        return;
     }
     
-    const data = await response.json();
+    showToast('Loading details...', 'info');
     
-    if (!data.success) {
-      showToast(data.error || 'Failed to load details', 'error');
-      return;
+    try {
+        if (type === 'schools') {
+            // Load comprehensive school data
+            const fullData = await loadFullSchoolDetails(id);
+            if (fullData) {
+                displayEnhancedSchoolModal(fullData);
+            }
+        } else {
+            // Original logic for non-school items
+            let response = await fetch(`/api/search/details/${type}/${id}`);
+            const data = await response.json();
+            
+            if (!data.success) {
+                showToast(data.error || 'Failed to load details', 'error');
+                return;
+            }
+            
+            displayItemDetailsModal(type, data.data);
+        }
+    } catch (error) {
+        console.error('Error loading details:', error);
+        showToast(`Failed to load details: ${error.message}`, 'error');
     }
-    
-    // For schools, data is in data.school, for others it's in data.data
-    const itemData = data.school || data.data;
-    displayItemDetailsModal(type, itemData);
-    
-  } catch (error) {
-    console.error('Error loading details:', error);
-    showToast('Failed to load details: ' + error.message, 'error');
-  }
-};
+}
 
 // ========== Display Item Details Modal ==========
 function displayItemDetailsModal(type, data) {
@@ -1162,6 +1157,345 @@ function loadSchoolStats() {
         totalSchools.textContent = '-';
       }
     });
+}
+
+/**
+ * Load all school-related data from multiple endpoints
+ */
+async function loadFullSchoolDetails(schoolId) {
+    try {
+        const [schoolResponse, subjectsResponse, ccasResponse, programmesResponse, distinctivesResponse] = await Promise.all([
+            fetch(`/api/schools/${schoolId}/details`),
+            fetch(`/api/schools/${schoolId}/subjects`),
+            fetch(`/api/schools/${schoolId}/ccas`),
+            fetch(`/api/schools/${schoolId}/programmes`),
+            fetch(`/api/schools/${schoolId}/distinctives`)
+        ]);
+        
+        if (!schoolResponse.ok) {
+            throw new Error('Failed to load school details');
+        }
+        
+        const school = await schoolResponse.json();
+        const subjects = subjectsResponse.ok ? await subjectsResponse.json() : [];
+        const ccas = ccasResponse.ok ? await ccasResponse.json() : [];
+        const programmes = programmesResponse.ok ? await programmesResponse.json() : [];
+        const distinctives = distinctivesResponse.ok ? await distinctivesResponse.json() : [];
+        
+        return {
+            school: school.school || school,
+            subjects: subjects || [],
+            ccas: ccas || [],
+            programmes: programmes || [],
+            distinctives: distinctives || []
+        };
+    } catch (error) {
+        console.error('Error loading full school details:', error);
+        showToast('Failed to load complete school details', 'error');
+        return null;
+    }
+}
+
+/**
+ * Display enhanced school modal with comprehensive information
+ */
+function displayEnhancedSchoolModal(data) {
+    const { school, subjects, ccas, programmes, distinctives } = data;
+    
+    let html = `
+        <div class="modal active" id="detailsModal">
+            <div class="modal-overlay" onclick="closeDetailsModal()"></div>
+            <div class="modal-content" style="max-width: 1000px; max-height: 90vh; overflow-y: auto;">
+                <div class="modal-header">
+                    <h3>${school.school_name || 'School Details'}</h3>
+                    <button class="modal-close" onclick="closeDetailsModal()">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+                        </svg>
+                    </button>
+                </div>
+                
+                <div class="detail-modal-content" style="padding: 1.5rem;">
+                    ${renderBasicInfo(school)}
+                    ${renderContactInfo(school)}
+                    ${renderPersonnel(school)}
+                    ${renderSpecialProgrammes(school)}
+                    ${renderMotherTongue(school)}
+                    ${renderTransport(school)}
+                    ${renderSubjectsList(subjects)}
+                    ${renderCCAsList(ccas)}
+                    ${renderProgrammesList(programmes)}
+                    ${renderDistinctivesList(distinctives)}
+                </div>
+            </div>
+        </div>
+    `;
+    
+    document.body.insertAdjacentHTML('beforeend', html);
+    document.body.style.overflow = 'hidden';
+}
+
+/**
+ * Render basic information section
+ */
+function renderBasicInfo(school) {
+    return `
+        <div class="info-section">
+            <h4 style="margin-bottom: 1rem; color: #1F2937; border-bottom: 2px solid #3B82F6; padding-bottom: 0.5rem;">
+                Basic Information
+            </h4>
+            <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.75rem;">
+                ${school.school_name ? `<div><strong>School Name:</strong> <span>${school.school_name}</span></div>` : ''}
+                ${school.zone_code ? `<div><strong>Zone:</strong> <span class="badge">${school.zone_code}</span></div>` : ''}
+                ${school.mainlevel_code ? `<div><strong>Level:</strong> <span>${school.mainlevel_code}</span></div>` : ''}
+                ${school.type_code ? `<div><strong>Type:</strong> <span>${school.type_code}</span></div>` : ''}
+                ${school.nature_code ? `<div><strong>Nature:</strong> <span>${school.nature_code}</span></div>` : ''}
+                ${school.session_code ? `<div><strong>Session:</strong> <span>${school.session_code}</span></div>` : ''}
+                ${school.dgp_code ? `<div><strong>DGP Code:</strong> <span>${school.dgp_code}</span></div>` : ''}
+                ${school.address ? `<div style="grid-column: 1 / -1;"><strong>Address:</strong> <span>${school.address}</span></div>` : ''}
+                ${school.postal_code ? `<div><strong>Postal Code:</strong> <span>${school.postal_code}</span></div>` : ''}
+            </div>
+        </div>
+    `;
+}
+
+/**
+ * Render contact information section
+ */
+function renderContactInfo(school) {
+    if (!school.email_address && !school.telephone_no && !school.telephone_no_2 && !school.fax_no && !school.url_address) {
+        return '';
+    }
+    
+    return `
+        <div class="info-section" style="margin-top: 1.5rem;">
+            <h4 style="margin-bottom: 1rem; color: #1F2937; border-bottom: 2px solid #F59E0B; padding-bottom: 0.5rem;">
+                Contact Information
+            </h4>
+            <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.75rem;">
+                ${school.email_address ? `<div><strong>Email:</strong> <a href="mailto:${school.email_address}" style="color: #3B82F6;">${school.email_address}</a></div>` : ''}
+                ${school.telephone_no ? `<div><strong>Phone:</strong> <span>${school.telephone_no}</span></div>` : ''}
+                ${school.telephone_no_2 ? `<div><strong>Phone 2:</strong> <span>${school.telephone_no_2}</span></div>` : ''}
+                ${school.fax_no ? `<div><strong>Fax:</strong> <span>${school.fax_no}</span></div>` : ''}
+                ${school.url_address ? `<div style="grid-column: 1 / -1;"><strong>Website:</strong> <a href="${school.url_address}" target="_blank" style="color: #3B82F6;">${school.url_address}</a></div>` : ''}
+            </div>
+        </div>
+    `;
+}
+
+/**
+ * Render personnel section
+ */
+function renderPersonnel(school) {
+    const hasPersonnel = school.principal_name || school.first_vp_name || school.second_vp_name || 
+                         school.third_vp_name || school.fourth_vp_name || school.fifth_vp_name;
+    
+    if (!hasPersonnel) return '';
+    
+    return `
+        <div class="info-section" style="margin-top: 1.5rem;">
+            <h4 style="margin-bottom: 1rem; color: #1F2937; border-bottom: 2px solid #10B981; padding-bottom: 0.5rem;">
+                School Leadership
+            </h4>
+            <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.75rem;">
+                ${school.principal_name ? `<div><strong>Principal:</strong> <span>${school.principal_name}</span></div>` : ''}
+                ${school.first_vp_name ? `<div><strong>Vice Principal 1:</strong> <span>${school.first_vp_name}</span></div>` : ''}
+                ${school.second_vp_name ? `<div><strong>Vice Principal 2:</strong> <span>${school.second_vp_name}</span></div>` : ''}
+                ${school.third_vp_name ? `<div><strong>Vice Principal 3:</strong> <span>${school.third_vp_name}</span></div>` : ''}
+                ${school.fourth_vp_name ? `<div><strong>Vice Principal 4:</strong> <span>${school.fourth_vp_name}</span></div>` : ''}
+                ${school.fifth_vp_name ? `<div><strong>Vice Principal 5:</strong> <span>${school.fifth_vp_name}</span></div>` : ''}
+            </div>
+        </div>
+    `;
+}
+
+/**
+ * Render special programmes section
+ */
+function renderSpecialProgrammes(school) {
+    const indicators = [];
+    if (school.autonomous_ind === 'Yes') indicators.push('Autonomous');
+    if (school.gifted_ind === 'Yes') indicators.push('Gifted');
+    if (school.ip_ind === 'Yes') indicators.push('IP');
+    if (school.sap_ind === 'Yes') indicators.push('SAP');
+    
+    if (indicators.length === 0) return '';
+    
+    return `
+        <div class="info-section" style="margin-top: 1.5rem;">
+            <h4 style="margin-bottom: 1rem; color: #1F2937; border-bottom: 2px solid #8B5CF6; padding-bottom: 0.5rem;">
+                Special Programmes
+            </h4>
+            <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                ${indicators.map(ind => `<span class="badge" style="background: #8B5CF6; color: white; padding: 0.375rem 0.75rem;">${ind}</span>`).join('')}
+            </div>
+        </div>
+    `;
+}
+
+/**
+ * Render mother tongue languages section
+ */
+function renderMotherTongue(school) {
+    const languages = [];
+    if (school.mothertongue1_code && school.mothertongue1_code !== 'NA') languages.push(school.mothertongue1_code);
+    if (school.mothertongue2_code && school.mothertongue2_code !== 'NA') languages.push(school.mothertongue2_code);
+    if (school.mothertongue3_code && school.mothertongue3_code !== 'NA') languages.push(school.mothertongue3_code);
+    
+    if (languages.length === 0) return '';
+    
+    return `
+        <div class="info-section" style="margin-top: 1.5rem;">
+            <h4 style="margin-bottom: 1rem; color: #1F2937; border-bottom: 2px solid #EC4899; padding-bottom: 0.5rem;">
+                Mother Tongue Languages Offered
+            </h4>
+            <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                ${languages.map(lang => `<span class="badge" style="background: #FCE7F3; color: #9F1239; padding: 0.375rem 0.75rem;">${lang}</span>`).join('')}
+            </div>
+        </div>
+    `;
+}
+
+/**
+ * Render transportation section
+ */
+function renderTransport(school) {
+    if (!school.mrt_desc && !school.bus_desc) return '';
+    
+    return `
+        <div class="info-section" style="margin-top: 1.5rem;">
+            <h4 style="margin-bottom: 1rem; color: #1F2937; border-bottom: 2px solid #EF4444; padding-bottom: 0.5rem;">
+                Transportation
+            </h4>
+            <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.75rem;">
+                ${school.mrt_desc ? `<div><strong>MRT:</strong> <span>${school.mrt_desc}</span></div>` : ''}
+                ${school.bus_desc ? `<div><strong>Bus Services:</strong> <span>${school.bus_desc}</span></div>` : ''}
+            </div>
+        </div>
+    `;
+}
+
+/**
+ * Render subjects list
+ */
+function renderSubjectsList(subjects) {
+    if (!subjects || subjects.length === 0) return '';
+    
+    return `
+        <div class="info-section" style="margin-top: 1.5rem;">
+            <h4 style="margin-bottom: 1rem; color: #1F2937; border-bottom: 2px solid #3B82F6; padding-bottom: 0.5rem;">
+                Subjects Offered (${subjects.length})
+            </h4>
+            <div style="display: flex; flex-wrap: wrap; gap: 0.5rem;">
+                ${subjects.map(s => `<span class="badge" style="background: #EFF6FF; color: #1E40AF; padding: 0.375rem 0.75rem;">${s.subject_desc}</span>`).join('')}
+            </div>
+        </div>
+    `;
+}
+
+/**
+ * Render CCAs grouped by type (e.g., Visual Arts, Sports & Games)
+ */
+function renderCCAsList(ccas) {
+    if (!ccas || ccas.length === 0) return '';
+    
+    // Group CCAs by cca_grouping_desc
+    const groupedCCAs = {};
+    ccas.forEach(cca => {
+        const group = cca.cca_grouping_desc || 'Other';
+        if (!groupedCCAs[group]) groupedCCAs[group] = [];
+        groupedCCAs[group].push(cca);
+    });
+    
+    let ccaHTML = '';
+    Object.keys(groupedCCAs).sort().forEach(group => {
+        ccaHTML += `
+            <div style="margin-bottom: 1.5rem;">
+                <h5 style="color: #059669; margin-bottom: 0.75rem; font-size: 1rem; font-weight: 600;">
+                    ${group} (${groupedCCAs[group].length})
+                </h5>
+                <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 0.75rem;">
+                    ${groupedCCAs[group].map(cca => `
+                        <div style="padding: 0.875rem; background: #F0FDF4; border-left: 3px solid #10B981; border-radius: 0.375rem;">
+                            <strong style="color: #065F46; font-size: 0.9rem;">${cca.cca_generic_name}</strong>
+                            ${cca.cca_customized_name && cca.cca_customized_name !== cca.cca_generic_name ? 
+                                `<div style="color: #6B7280; font-size: 0.8rem; margin-top: 0.25rem;">${cca.cca_customized_name}</div>` : ''}
+                            ${cca.school_section ? 
+                                `<span class="badge" style="font-size: 0.7rem; margin-top: 0.5rem; background: #D1FAE5; color: #065F46; padding: 0.125rem 0.5rem;">${cca.school_section}</span>` : ''}
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        `;
+    });
+    
+    return `
+        <div class="info-section" style="margin-top: 1.5rem;">
+            <h4 style="margin-bottom: 1rem; color: #1F2937; border-bottom: 2px solid #10B981; padding-bottom: 0.5rem;">
+                Co-Curricular Activities (${ccas.length})
+            </h4>
+            ${ccaHTML}
+        </div>
+    `;
+}
+
+/**
+ * Render MOE programmes list
+ */
+function renderProgrammesList(programmes) {
+    if (!programmes || programmes.length === 0) return '';
+    
+    return `
+        <div class="info-section" style="margin-top: 1.5rem;">
+            <h4 style="margin-bottom: 1rem; color: #1F2937; border-bottom: 2px solid #F59E0B; padding-bottom: 0.5rem;">
+                MOE Programmes (${programmes.length})
+            </h4>
+            <ul style="list-style: none; padding: 0; margin: 0;">
+                ${programmes.map(p => `
+                    <li style="padding: 0.875rem; background: #FFFBEB; margin-bottom: 0.5rem; border-radius: 0.375rem; border-left: 3px solid #F59E0B;">
+                        <span style="color: #92400E;">• ${p.moe_programme_desc}</span>
+                    </li>
+                `).join('')}
+            </ul>
+        </div>
+    `;
+}
+
+/**
+ * Render distinctive programmes (ALP and LLP with domains and titles)
+ */
+function renderDistinctivesList(distinctives) {
+    if (!distinctives || distinctives.length === 0) return '';
+    
+    return `
+        <div class="info-section" style="margin-top: 1.5rem;">
+            <h4 style="margin-bottom: 1rem; color: #1F2937; border-bottom: 2px solid #8B5CF6; padding-bottom: 0.5rem;">
+                Distinctive Programmes (${distinctives.length})
+            </h4>
+            ${distinctives.map(d => `
+                <div style="margin-bottom: 1.25rem; padding: 1.25rem; background: #F5F3FF; border-left: 4px solid #8B5CF6; border-radius: 0.5rem;">
+                    ${d.alp_title ? `
+                        <div style="margin-bottom: ${d.llp_title ? '1rem' : '0'};">
+                            <div style="margin-bottom: 0.5rem;">
+                                <span style="background: #8B5CF6; color: white; padding: 0.25rem 0.625rem; border-radius: 0.25rem; font-size: 0.75rem; font-weight: 600; margin-right: 0.5rem;">ALP</span>
+                                <strong style="color: #6B21A8; font-size: 1rem;">${d.alp_title}</strong>
+                            </div>
+                            ${d.alp_domain ? `<div style="color: #6B7280; font-size: 0.875rem; margin-left: 3.5rem;"><em>Domain: ${d.alp_domain}</em></div>` : ''}
+                        </div>
+                    ` : ''}
+                    ${d.llp_title ? `
+                        <div>
+                            <div style="margin-bottom: 0.5rem;">
+                                <span style="background: #8B5CF6; color: white; padding: 0.25rem 0.625rem; border-radius: 0.25rem; font-size: 0.75rem; font-weight: 600; margin-right: 0.5rem;">LLP</span>
+                                <strong style="color: #6B21A8; font-size: 1rem;">${d.llp_title}</strong>
+                            </div>
+                            ${d.llp_domain1 ? `<div style="color: #6B7280; font-size: 0.875rem; margin-left: 3.5rem;"><em>Domain: ${d.llp_domain1}</em></div>` : ''}
+                        </div>
+                    ` : ''}
+                </div>
+            `).join('')}
+        </div>
+    `;
 }
 
 // ========== Toast Notifications ==========
