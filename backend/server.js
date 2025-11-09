@@ -198,92 +198,231 @@ app.delete('/api/schools/:id', async (req, res) => {
   }
 });
 
+// ========== GET SCHOOL DETAILS BY ID ==========
+app.get('/api/schools/:id/details', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const query = `
+      SELECT 
+        s.*,
+        r.email_address,
+        r.telephone_no,
+        r.first_vp_name,
+        r.second_vp_name,
+        r.type_code,
+        r.nature_code,
+        r.session_code,
+        r.autonomous_ind,
+        r.gifted_ind,
+        r.ip_ind,
+        r.sap_ind,
+        r.bus_desc,
+        r.mrt_desc,
+        COUNT(DISTINCT ss.subject_id) as subject_count,
+        COUNT(DISTINCT sc.cca_id) as cca_count,
+        COUNT(DISTINCT sp.programme_id) as programme_count,
+        COUNT(DISTINCT sd.distinctive_id) as distinctive_count
+      FROM Schools s
+      LEFT JOIN raw_general_info r ON LOWER(s.school_name) = LOWER(r.school_name)
+      LEFT JOIN School_Subjects ss ON s.school_id = ss.school_id
+      LEFT JOIN School_CCAs sc ON s.school_id = sc.school_id
+      LEFT JOIN School_Programmes sp ON s.school_id = sp.school_id
+      LEFT JOIN School_Distinctives sd ON s.school_id = sd.school_id
+      WHERE s.school_id = $1
+      GROUP BY s.school_id, r.email_address, r.telephone_no, r.first_vp_name, 
+               r.second_vp_name, r.type_code, r.nature_code, r.session_code,
+               r.autonomous_ind, r.gifted_ind, r.ip_ind, r.sap_ind, 
+               r.bus_desc, r.mrt_desc
+    `;
+    
+    const result = await pool.query(query, [id]);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'School not found'
+      });
+    }
+    
+    res.json({
+      success: true,
+      school: result.rows[0]
+    });
+    
+  } catch (err) {
+    console.error('School details error:', err);
+    res.status(500).json({
+      success: false,
+      error: err.message
+    });
+  }
+});
+
 // ========== READ-ONLY QUERY ROUTES ==========
 
 // School subjects
+// ========== FIX SPECIFIC SEARCH ENDPOINTS ==========
+
+// School subjects - SEARCH BY SUBJECT, NOT SCHOOL
 app.get('/api/schools/subjects', async (req, res) => {
   try {
     const { name } = req.query;
+    
+    if (!name || name.trim() === '') {
+      return res.json([]);
+    }
+    
     const result = await pool.query(
-      `SELECT s.school_name, subj.subject_desc
+      `SELECT DISTINCT
+        s.school_name,
+        s.zone_code,
+        s.mainlevel_code,
+        subj.subject_desc,
+        subj.subject_id
        FROM Schools s
        JOIN School_Subjects ss ON s.school_id = ss.school_id
        JOIN Subjects subj ON subj.subject_id = ss.subject_id
-       WHERE LOWER(s.school_name) LIKE LOWER($1)
-       ORDER BY s.school_name, subj.subject_desc`,
+       WHERE LOWER(subj.subject_desc) LIKE LOWER($1)
+         AND subj.subject_desc IS NOT NULL
+         AND TRIM(subj.subject_desc) != ''
+         AND UPPER(subj.subject_desc) NOT IN ('NA', 'N/A', 'NIL', 'NONE', '-')
+       ORDER BY s.school_name, subj.subject_desc
+       LIMIT 100`,
       [`%${name}%`]
     );
     
     logActivity('search_subjects', { query: name, results_count: result.rows.length });
     
-    res.json(result.rows.length ? result.rows : [{ school_name: "No match", subject_desc: "N/A" }]);
+    res.json(result.rows);
   } catch (err) {
+    console.error('Subject search error:', err);
     res.status(500).json({ error: err.message });
   }
 });
 
-// School CCAs
+// School CCAs - SEARCH BY CCA, NOT SCHOOL
 app.get('/api/schools/ccas', async (req, res) => {
   try {
     const { name } = req.query;
+    
+    if (!name || name.trim() === '') {
+      return res.json([]);
+    }
+    
     const result = await pool.query(
-      `SELECT s.school_name, c.cca_generic_name, sca.cca_customized_name, sca.school_section
+      `SELECT DISTINCT
+        s.school_name,
+        s.zone_code,
+        s.mainlevel_code,
+        c.cca_generic_name,
+        c.cca_grouping_desc,
+        sca.cca_customized_name,
+        sca.school_section
        FROM Schools s
        JOIN School_CCAs sca ON s.school_id = sca.school_id
        JOIN CCAs c ON c.cca_id = sca.cca_id
-       WHERE LOWER(s.school_name) LIKE LOWER($1)
-       ORDER BY s.school_name, c.cca_generic_name`,
+       WHERE (
+         LOWER(c.cca_generic_name) LIKE LOWER($1) OR
+         LOWER(c.cca_grouping_desc) LIKE LOWER($1) OR
+         LOWER(sca.cca_customized_name) LIKE LOWER($1)
+       )
+       AND c.cca_generic_name IS NOT NULL
+       AND TRIM(c.cca_generic_name) != ''
+       AND UPPER(c.cca_generic_name) NOT IN ('NA', 'N/A', 'NIL', 'NONE', '-')
+       ORDER BY s.school_name, c.cca_generic_name
+       LIMIT 100`,
       [`%${name}%`]
     );
     
     logActivity('search_ccas', { query: name, results_count: result.rows.length });
     
-    res.json(result.rows.length ? result.rows : [{ school_name: "No match", cca_generic_name: "N/A" }]);
+    res.json(result.rows);
   } catch (err) {
+    console.error('CCA search error:', err);
     res.status(500).json({ error: err.message });
   }
 });
 
-// School Programmes
+// School Programmes - SEARCH BY PROGRAMME, NOT SCHOOL
 app.get('/api/schools/programmes', async (req, res) => {
   try {
     const { name } = req.query;
+    
+    if (!name || name.trim() === '') {
+      return res.json([]);
+    }
+    
     const result = await pool.query(
-      `SELECT s.school_name, p.moe_programme_desc
+      `SELECT DISTINCT
+        s.school_name,
+        s.zone_code,
+        s.mainlevel_code,
+        p.moe_programme_desc
        FROM Schools s
        JOIN School_Programmes sp ON s.school_id = sp.school_id
        JOIN Programmes p ON p.programme_id = sp.programme_id
-       WHERE LOWER(s.school_name) LIKE LOWER($1)
-       ORDER BY s.school_name, p.moe_programme_desc`,
+       WHERE LOWER(p.moe_programme_desc) LIKE LOWER($1)
+         AND p.moe_programme_desc IS NOT NULL
+         AND TRIM(p.moe_programme_desc) != ''
+         AND UPPER(p.moe_programme_desc) NOT IN ('NA', 'N/A', 'NIL', 'NONE', '-')
+       ORDER BY s.school_name, p.moe_programme_desc
+       LIMIT 100`,
       [`%${name}%`]
     );
     
     logActivity('search_programmes', { query: name, results_count: result.rows.length });
     
-    res.json(result.rows.length ? result.rows : [{ school_name: "No match", moe_programme_desc: "N/A" }]);
+    res.json(result.rows);
   } catch (err) {
+    console.error('Programme search error:', err);
     res.status(500).json({ error: err.message });
   }
 });
 
-// School Distinctives
+// School Distinctives - SEARCH BY DISTINCTIVE, NOT SCHOOL (FIX THIS!)
 app.get('/api/schools/distinctives', async (req, res) => {
   try {
     const { name } = req.query;
+    
+    if (!name || name.trim() === '') {
+      return res.json([]);
+    }
+    
     const result = await pool.query(
-      `SELECT s.school_name, d.alp_domain, d.alp_title, d.llp_domain1, d.llp_title
+      `SELECT DISTINCT
+        s.school_name,
+        s.zone_code,
+        s.mainlevel_code,
+        d.alp_domain,
+        d.alp_title,
+        d.llp_domain1,
+        d.llp_title
        FROM Schools s
        JOIN School_Distinctives sd ON s.school_id = sd.school_id
        JOIN Distinctive_Programmes d ON d.distinctive_id = sd.distinctive_id
-       WHERE LOWER(s.school_name) LIKE LOWER($1)
-       ORDER BY s.school_name`,
+       WHERE (
+         LOWER(d.alp_domain) LIKE LOWER($1) OR
+         LOWER(d.alp_title) LIKE LOWER($1) OR
+         LOWER(d.llp_domain1) LIKE LOWER($1) OR
+         LOWER(d.llp_title) LIKE LOWER($1)
+       )
+       AND (
+         (d.alp_domain IS NOT NULL AND TRIM(d.alp_domain) != '' AND UPPER(d.alp_domain) NOT IN ('NA', 'N/A', 'NIL', 'NONE', '-')) OR
+         (d.alp_title IS NOT NULL AND TRIM(d.alp_title) != '' AND UPPER(d.alp_title) NOT IN ('NA', 'N/A', 'NIL', 'NONE', '-')) OR
+         (d.llp_domain1 IS NOT NULL AND TRIM(d.llp_domain1) != '' AND UPPER(d.llp_domain1) NOT IN ('NA', 'N/A', 'NIL', 'NONE', '-')) OR
+         (d.llp_title IS NOT NULL AND TRIM(d.llp_title) != '' AND UPPER(d.llp_title) NOT IN ('NA', 'N/A', 'NIL', 'NONE', '-'))
+       )
+       ORDER BY s.school_name
+       LIMIT 100`,
       [`%${name}%`]
     );
     
     logActivity('search_distinctives', { query: name, results_count: result.rows.length });
     
-    res.json(result.rows.length ? result.rows : [{ school_name: "No match", alp_domain: "N/A" }]);
+    res.json(result.rows);
   } catch (err) {
+    console.error('Distinctive search error:', err);
     res.status(500).json({ error: err.message });
   }
 });

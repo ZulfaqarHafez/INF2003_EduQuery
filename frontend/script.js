@@ -215,10 +215,20 @@ function hideLoading() {
 
 function updateResultsMeta(count, query) {
   const meta = document.getElementById('resultsMeta');
-  if (count === 0) {
+  const queryType = document.getElementById('queryType').value;
+  
+  if (!count || count === 0) {
     meta.textContent = `No results found for "${query}"`;
   } else {
-    meta.textContent = `Found ${count} result${count !== 1 ? 's' : ''} for "${query}"`;
+    const typeLabel = {
+      'all': 'school(s)',
+      'subjects': 'subject result(s)',
+      'ccas': 'CCA result(s)',
+      'programmes': 'programme result(s)',
+      'distinctives': 'distinctive programme result(s)'
+    }[queryType] || 'result(s)';
+    
+    meta.textContent = `Found ${count} ${typeLabel} matching "${query}"`;
   }
 }
 
@@ -239,13 +249,10 @@ function renderEmpty(message) {
 function renderTable(data, queryType) {
   const container = document.getElementById("resultsTable");
   
-  if (!data || data.length === 0) {
+  // Handle empty or invalid data
+  if (!data || !Array.isArray(data) || data.length === 0) {
     renderEmpty('No results found');
     return;
-  }
-
-  if (!Array.isArray(data)) {
-    data = [data];
   }
 
   const keys = Object.keys(data[0]);
@@ -268,7 +275,15 @@ function renderTable(data, queryType) {
   data.forEach(row => {
     html += '<tr>';
     keys.forEach(k => {
-      const value = row[k] !== null && row[k] !== undefined ? row[k] : '-';
+      let value = row[k];
+      
+      // Handle null, undefined, or 'NA' values
+      if (value === null || value === undefined || value === '' || 
+          String(value).toUpperCase() === 'NA' || 
+          String(value).toUpperCase() === 'N/A') {
+        value = '-';
+      }
+      
       html += `<td>${value}</td>`;
     });
     
@@ -300,13 +315,17 @@ function renderTable(data, queryType) {
   html += '</tbody></table>';
   container.innerHTML = html;
 }
-// ========== ADD THESE FUNCTIONS TO script.js ==========
-// Add after your existing runQuery function, before CRUD Operations
 
-// ========== UPDATED runQuery with Universal Search Support ==========
+// ========== runQuery with Universal Search Support ==========
 window.runQuery = async function() {
   const school = document.getElementById("searchBox").value.trim();
   const queryType = document.getElementById("queryType").value;
+  const summary = document.getElementById('universalSearchSummary');
+
+  // Hide summary for non-universal searches
+  if (summary) {
+    summary.style.display = 'none';
+  }
 
   if (!school) {
     showToast('Please enter a search term', 'error');
@@ -343,15 +362,25 @@ window.runQuery = async function() {
     if (data.error) {
       showToast(data.error, 'error');
       renderEmpty('Error loading data');
+      updateResultsMeta(0, school);
       return;
     }
     
+    // Render results
     renderTable(data, queryType);
     updateResultsMeta(data.length, school);
+    
+    // Show appropriate toast
+    if (data.length === 0) {
+      showToast('No results found', 'info');
+    } else {
+      showToast(`Found ${data.length} result(s)`, 'success');
+    }
   } catch (err) {
     hideLoading();
     showToast('Failed to fetch data: ' + err.message, 'error');
     renderEmpty('Connection error');
+    updateResultsMeta(0, school);
   }
 };
 
@@ -496,11 +525,11 @@ function renderCategory(type, title, items, query) {
   return html;
 }
 
-// ========== Render Result Item ==========
+/// ========== Render Result Item (FIXED) ==========
 function renderResultItem(type, item, query) {
-  const itemJson = JSON.stringify(item).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  const itemId = item.id || item.school_id || item.subject_id || item.cca_id || item.programme_id || item.distinctive_id;
   
-  let html = `<div class="result-item" onclick='viewItemDetails("${type}", ${item.id})'>`;
+  let html = `<div class="result-item" onclick='viewItemDetails("${type}", ${itemId})'>`;
   html += '<div class="result-item-header">';
   
   // Title with highlighted search term
@@ -520,9 +549,13 @@ function renderResultItem(type, item, query) {
   // Meta tags
   html += '<div class="result-item-meta">';
   
-  if (type === 'school') {
-    html += `<span class="meta-tag zone-${item.zone_code.toLowerCase()}">${item.zone_code}</span>`;
-    html += `<span class="meta-tag">${item.mainlevel_code}</span>`;
+  if (type === 'schools') {
+    if (item.zone_code) {
+      html += `<span class="meta-tag zone-${item.zone_code.toLowerCase()}">${item.zone_code}</span>`;
+    }
+    if (item.mainlevel_code) {
+      html += `<span class="meta-tag">${item.mainlevel_code}</span>`;
+    }
     if (item.principal_name) {
       html += `<span class="meta-tag">
         <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor">
@@ -558,18 +591,33 @@ function highlightSearchTerm(text, searchTerm) {
 window.viewItemDetails = async function(type, id) {
   console.log('Viewing details for:', type, id);
   
+  if (!id) {
+    showToast('Invalid item ID', 'error');
+    return;
+  }
+  
   showToast('Loading details...', 'info');
   
   try {
-    const response = await fetch(`/api/search/details/${type}/${id}`);
+    let response;
+    
+    // Use different endpoint for schools
+    if (type === 'schools') {
+      response = await fetch(`/api/schools/${id}/details`);
+    } else {
+      response = await fetch(`/api/search/details/${type}/${id}`);
+    }
+    
     const data = await response.json();
     
     if (!data.success) {
-      showToast('Failed to load details', 'error');
+      showToast(data.error || 'Failed to load details', 'error');
       return;
     }
     
-    displayItemDetailsModal(type, data.data);
+    // For schools, data is in data.school, for others it's in data.data
+    const itemData = data.school || data.data;
+    displayItemDetailsModal(type, itemData);
     
   } catch (error) {
     console.error('Error loading details:', error);
@@ -584,11 +632,11 @@ function displayItemDetailsModal(type, data) {
   html += '<div class="modal-content">';
   html += '<div class="modal-header">';
   html += `<h3>${getTypeTitle(type)} Details</h3>`;
-  html += '<button class="modal-close" onclick="closeDetailsModal()"><svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg></button>';
+  html += '<button class="modal-close" onclick="closeDetailsModal()">×</button>';
   html += '</div>';
   html += '<div class="detail-modal-content">';
   
-  if (type === 'school') {
+  if (type === 'schools') {
     html += renderSchoolDetails(data);
   } else {
     html += renderGenericDetails(type, data);
@@ -613,17 +661,76 @@ window.closeDetailsModal = function() {
 
 // ========== Render School Details ==========
 function renderSchoolDetails(school) {
-  return `
+  let html = `
     <div class="detail-header">
       <h4 class="detail-title">${school.school_name}</h4>
       <div class="detail-grid">
-        <div class="detail-row"><strong>Address:</strong> <span>${school.address}</span></div>
-        <div class="detail-row"><strong>Postal Code:</strong> <span>${school.postal_code}</span></div>
-        <div class="detail-row"><strong>Zone:</strong> <span class="zone-badge zone-${school.zone_code.toLowerCase()}">${school.zone_code}</span></div>
-        <div class="detail-row"><strong>Level:</strong> <span>${school.mainlevel_code}</span></div>
-        <div class="detail-row"><strong>Principal:</strong> <span>${school.principal_name}</span></div>
-      </div>
-    </div>
+  `;
+  
+  // Basic Info
+  if (school.address) {
+    html += `<div class="detail-row"><strong>Address:</strong> <span>${school.address}</span></div>`;
+  }
+  if (school.postal_code) {
+    html += `<div class="detail-row"><strong>Postal Code:</strong> <span>${school.postal_code}</span></div>`;
+  }
+  if (school.zone_code) {
+    html += `<div class="detail-row"><strong>Zone:</strong> <span class="meta-tag zone-${school.zone_code.toLowerCase()}">${school.zone_code}</span></div>`;
+  }
+  if (school.mainlevel_code) {
+    html += `<div class="detail-row"><strong>Level:</strong> <span>${school.mainlevel_code}</span></div>`;
+  }
+  
+  // Personnel
+  if (school.principal_name) {
+    html += `<div class="detail-row"><strong>Principal:</strong> <span>${school.principal_name}</span></div>`;
+  }
+  if (school.first_vp_name) {
+    html += `<div class="detail-row"><strong>Vice Principal:</strong> <span>${school.first_vp_name}</span></div>`;
+  }
+  
+  // Contact Info
+  if (school.email_address) {
+    html += `<div class="detail-row"><strong>Email:</strong> <span>${school.email_address}</span></div>`;
+  }
+  if (school.telephone_no) {
+    html += `<div class="detail-row"><strong>Phone:</strong> <span>${school.telephone_no}</span></div>`;
+  }
+  
+  // School Type
+  if (school.type_code) {
+    html += `<div class="detail-row"><strong>Type:</strong> <span>${school.type_code}</span></div>`;
+  }
+  if (school.nature_code) {
+    html += `<div class="detail-row"><strong>Nature:</strong> <span>${school.nature_code}</span></div>`;
+  }
+  
+  // Indicators
+  const indicators = [];
+  if (school.autonomous_ind === 'Yes') indicators.push('Autonomous');
+  if (school.gifted_ind === 'Yes') indicators.push('Gifted');
+  if (school.ip_ind === 'Yes') indicators.push('IP');
+  if (school.sap_ind === 'Yes') indicators.push('SAP');
+  
+  if (indicators.length > 0) {
+    html += `<div class="detail-row"><strong>Programmes:</strong> <span>${indicators.join(', ')}</span></div>`;
+  }
+  
+  // Transport
+  if (school.mrt_desc) {
+    html += `<div class="detail-row"><strong>MRT:</strong> <span>${school.mrt_desc}</span></div>`;
+  }
+  if (school.bus_desc) {
+    const busDesc = school.bus_desc.length > 100 
+      ? school.bus_desc.substring(0, 100) + '...' 
+      : school.bus_desc;
+    html += `<div class="detail-row"><strong>Bus Services:</strong> <span>${busDesc}</span></div>`;
+  }
+  
+  html += `</div></div>`;
+  
+  // Statistics
+  html += `
     <div class="detail-stats">
       <div class="detail-stat-item">
         <div class="detail-stat-label">Subjects</div>
@@ -637,8 +744,14 @@ function renderSchoolDetails(school) {
         <div class="detail-stat-label">Programmes</div>
         <div class="detail-stat-value">${school.programme_count || 0}</div>
       </div>
+      <div class="detail-stat-item">
+        <div class="detail-stat-label">Distinctives</div>
+        <div class="detail-stat-value">${school.distinctive_count || 0}</div>
+      </div>
     </div>
   `;
+  
+  return html;
 }
 
 // ========== Render Generic Details ==========
