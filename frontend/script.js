@@ -4,34 +4,34 @@ let pendingDeleteName = null;
 // ========== MAKE FUNCTIONS GLOBAL ==========
 // All functions must be in global scope for inline onclick to work
 
-window.switchView = function(viewName) {
+window.switchView = function (viewName) {
   console.log('Switching to view:', viewName);
-  
+
   const views = document.querySelectorAll('.view');
   const navBtns = document.querySelectorAll('.nav-btn');
-  
+
   views.forEach(view => view.classList.remove('active'));
   navBtns.forEach(btn => btn.classList.remove('active'));
-  
+
   const targetView = document.getElementById(`${viewName}View`);
   const targetBtn = document.querySelector(`[data-view="${viewName}"]`);
-  
+
   if (targetView) {
     targetView.classList.add('active');
     console.log('View activated:', viewName);
   } else {
     console.error('View not found:', `${viewName}View`);
   }
-  
+
   if (targetBtn) {
     targetBtn.classList.add('active');
   }
-  
+
   // Load stats when switching to manage view
   if (viewName === 'manage') {
     loadSchoolStats();
   }
-  
+
   if (viewName === 'map') {
     // Wait for view transition to complete before initializing map
     setTimeout(() => {
@@ -67,10 +67,10 @@ window.switchView = function(viewName) {
 // Add event listeners to nav buttons
 document.addEventListener('DOMContentLoaded', () => {
   console.log('DOM Loaded - Attaching event listeners');
-  
+
   const navBtns = document.querySelectorAll('.nav-btn');
   console.log('Found nav buttons:', navBtns.length);
-  
+
   navBtns.forEach((btn, index) => {
     console.log(`Nav button ${index}:`, btn.dataset.view);
     btn.addEventListener('click', () => {
@@ -78,7 +78,7 @@ document.addEventListener('DOMContentLoaded', () => {
       switchView(btn.dataset.view);
     });
   });
-  
+
   // Allow Enter key to trigger search
   const searchBox = document.getElementById('searchBox');
   if (searchBox) {
@@ -157,7 +157,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
 // ========== Search Functionality ==========
-window.runQuery = async function() {
+window.runQuery = async function () {
   const school = document.getElementById("searchBox").value.trim();
   const queryType = document.getElementById("queryType").value;
 
@@ -179,15 +179,15 @@ window.runQuery = async function() {
   try {
     const res = await fetch(url);
     const data = await res.json();
-    
+
     hideLoading();
-    
+
     if (data.error) {
       showToast(data.error, 'error');
       renderEmpty('Error loading data');
       return;
     }
-    
+
     renderTable(data, queryType);
     updateResultsMeta(data.length, school);
   } catch (err) {
@@ -200,7 +200,7 @@ window.runQuery = async function() {
 function showLoading(show) {
   const spinner = document.getElementById('loadingSpinner');
   const resultsTable = document.getElementById('resultsTable');
-  
+
   if (show) {
     spinner.style.display = 'flex';
     resultsTable.innerHTML = '';
@@ -216,7 +216,7 @@ function hideLoading() {
 function updateResultsMeta(count, query) {
   const meta = document.getElementById('resultsMeta');
   const queryType = document.getElementById('queryType').value;
-  
+
   if (!count || count === 0) {
     meta.textContent = `No results found for "${query}"`;
   } else {
@@ -227,7 +227,7 @@ function updateResultsMeta(count, query) {
       'programmes': 'programme result(s)',
       'distinctives': 'distinctive programme result(s)'
     }[queryType] || 'result(s)';
-    
+
     meta.textContent = `Found ${count} ${typeLabel} matching "${query}"`;
   }
 }
@@ -255,69 +255,116 @@ function renderTable(data, queryType) {
     return;
   }
 
-  const keys = Object.keys(data[0]);
-  let html = '<table class="data-table"><thead><tr>';
+  let html = '<div style="overflow-x: auto;"><table class="data-table"><thead><tr>';
   
-  keys.forEach(k => {
-    const formattedKey = k.split('_').map(word => 
-      word.charAt(0).toUpperCase() + word.slice(1)
-    ).join(' ');
-    html += `<th>${formattedKey}</th>`;
-  });
-  
-  // Add actions column only for "all" query type
+  // Define columns based on query type
   if (queryType === 'all') {
+    // School search - show all school fields + actions
+    const keys = Object.keys(data[0]);
+    keys.forEach(k => {
+      const formattedKey = k.split('_').map(word => 
+        word.charAt(0).toUpperCase() + word.slice(1)
+      ).join(' ');
+      html += `<th>${formattedKey}</th>`;
+    });
     html += '<th>Actions</th>';
+  } else if (queryType === 'subjects') {
+    html += '<th>School Name</th>';
+    html += '<th>Zone Code</th>';
+    html += '<th>Level</th>';
+    html += '<th>Subject</th>';
+  } else if (queryType === 'ccas') {
+    html += '<th>School Name</th>';
+    html += '<th>Zone Code</th>';
+    html += '<th>Level</th>';
+    html += '<th>CCA</th>';
+  } else if (queryType === 'programmes') {
+    html += '<th>School Name</th>';
+    html += '<th>Zone Code</th>';
+    html += '<th>Level</th>';
+    html += '<th>Programme</th>';
+  } else if (queryType === 'distinctives') {
+    html += '<th>School Name</th>';
+    html += '<th>Zone Code</th>';
+    html += '<th>Level</th>';
+    html += '<th>Distinctive Programme</th>';
   }
   
   html += '</tr></thead><tbody>';
 
   data.forEach(row => {
-    html += '<tr>';
-    keys.forEach(k => {
-      let value = row[k];
+    if (queryType === 'all') {
+      // Show all fields for school search
+      html += '<tr>';
+      const keys = Object.keys(data[0]);
+      keys.forEach(k => {
+        let value = row[k];
+        if (value === null || value === undefined || value === '' || 
+            String(value).toUpperCase() === 'NA' || 
+            String(value).toUpperCase() === 'N/A') {
+          value = '-';
+        }
+        html += `<td>${value}</td>`;
+      });
       
-      // Handle null, undefined, or 'NA' values
-      if (value === null || value === undefined || value === '' || 
-          String(value).toUpperCase() === 'NA' || 
-          String(value).toUpperCase() === 'N/A') {
-        value = '-';
+      // Add action buttons for schools
+      if (row.school_id) {
+        html += `
+          <td>
+            <div class="action-buttons">
+              <button class="btn-edit" onclick='editSchool(${JSON.stringify(row).replace(/'/g, "&apos;")})'>
+                <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
+                  <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z"/>
+                </svg>
+                Edit
+              </button>
+              <button class="btn-danger" onclick='deleteSchool(${row.school_id}, "${row.school_name.replace(/'/g, "&apos;")}")'>
+                <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
+                  <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"/>
+                </svg>
+                Delete
+              </button>
+            </div>
+          </td>
+        `;
+      }
+      html += '</tr>';
+    } else {
+      // Make the row clickable for non-"all" searches
+      html += `<tr data-clickable="true" onclick='viewItemDetails("schools", "${row.school_id}")' style="cursor: pointer;">`;
+      
+      if (queryType === 'subjects') {
+        html += `<td><strong>${row.school_name || '-'}</strong></td>`;
+        html += `<td><span class="badge">${row.zone_code || '-'}</span></td>`;
+        html += `<td>${row.mainlevel_code || '-'}</td>`;
+        html += `<td>${row.subject_desc || '-'}</td>`;
+      } else if (queryType === 'ccas') {
+        html += `<td><strong>${row.school_name || '-'}</strong></td>`;
+        html += `<td><span class="badge">${row.zone_code || '-'}</span></td>`;
+        html += `<td>${row.mainlevel_code || '-'}</td>`;
+        html += `<td>${row.cca_generic_name || '-'}</td>`;
+      } else if (queryType === 'programmes') {
+        html += `<td><strong>${row.school_name || '-'}</strong></td>`;
+        html += `<td><span class="badge">${row.zone_code || '-'}</span></td>`;
+        html += `<td>${row.mainlevel_code || '-'}</td>`;
+        html += `<td>${row.moe_programme_desc || '-'}</td>`;
+      } else if (queryType === 'distinctives') {
+        html += `<td><strong>${row.school_name || '-'}</strong></td>`;
+        html += `<td><span class="badge">${row.zone_code || '-'}</span></td>`;
+        html += `<td>${row.mainlevel_code || '-'}</td>`;
+        html += `<td>${row.distinctive_name || row.alp_title || row.llp_title || '-'}</td>`;
       }
       
-      html += `<td>${value}</td>`;
-    });
-    
-    // Add action buttons only for "all" query type
-    if (queryType === 'all' && row.school_id) {
-      html += `
-        <td>
-          <div class="action-buttons">
-            <button class="btn-edit" onclick='editSchool(${JSON.stringify(row).replace(/'/g, "&apos;")})'>
-              <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
-                <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z"/>
-              </svg>
-              Edit
-            </button>
-            <button class="btn-danger" onclick='deleteSchool(${row.school_id}, "${row.school_name.replace(/'/g, "&apos;")}")'>
-              <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
-                <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"/>
-              </svg>
-              Delete
-            </button>
-          </div>
-        </td>
-      `;
+      html += '</tr>';
     }
-    
-    html += '</tr>';
   });
 
-  html += '</tbody></table>';
+  html += '</tbody></table></div>';
   container.innerHTML = html;
 }
 
 // ========== runQuery with Universal Search Support ==========
-window.runQuery = async function() {
+window.runQuery = async function () {
   const school = document.getElementById("searchBox").value.trim();
   const queryType = document.getElementById("queryType").value;
   const summary = document.getElementById('universalSearchSummary');
@@ -356,20 +403,20 @@ window.runQuery = async function() {
   try {
     const res = await fetch(url);
     const data = await res.json();
-    
+
     hideLoading();
-    
+
     if (data.error) {
       showToast(data.error, 'error');
       renderEmpty('Error loading data');
       updateResultsMeta(0, school);
       return;
     }
-    
+
     // Render results
     renderTable(data, queryType);
     updateResultsMeta(data.length, school);
-    
+
     // Show appropriate toast
     if (data.length === 0) {
       showToast('No results found', 'info');
@@ -390,33 +437,33 @@ async function performUniversalSearch(query) {
   const results = document.getElementById('resultsTable');
   const summary = document.getElementById('universalSearchSummary');
   const meta = document.getElementById('resultsMeta');
-  
+
   // Hide summary initially
   if (summary) summary.style.display = 'none';
-  
+
   // Show loading
   loading.style.display = 'flex';
   results.innerHTML = '';
-  
+
   try {
     const response = await fetch(`/api/search/universal?query=${encodeURIComponent(query)}`);
     const data = await response.json();
-    
+
     loading.style.display = 'none';
-    
+
     if (!data.success) {
       showToast(data.message || 'Search failed', 'error');
       renderEmpty('No results found');
       meta.textContent = `No results found for "${query}"`;
       return;
     }
-    
+
     // Update summary
     updateUniversalSearchSummary(data.results);
-    
+
     // Render results
     renderUniversalSearchResults(data.results, query);
-    
+
     // Update meta
     if (data.results.total === 0) {
       meta.textContent = `No results found for "${query}"`;
@@ -425,7 +472,7 @@ async function performUniversalSearch(query) {
       meta.textContent = `Found ${data.results.total} results across all categories for "${query}"`;
       showToast(`Found ${data.results.total} results`, 'success');
     }
-    
+
   } catch (error) {
     loading.style.display = 'none';
     console.error('Universal search error:', error);
@@ -438,55 +485,55 @@ async function performUniversalSearch(query) {
 // ========== Update Universal Search Summary ==========
 function updateUniversalSearchSummary(results) {
   const summary = document.getElementById('universalSearchSummary');
-  
+
   if (!summary) return;
-  
+
   document.getElementById('totalResults').textContent = results.total;
   document.getElementById('schoolResults').textContent = results.schools.length;
   document.getElementById('subjectResults').textContent = results.subjects.length;
   document.getElementById('ccaResults').textContent = results.ccas.length;
   document.getElementById('programmeResults').textContent = results.programmes.length;
   document.getElementById('distinctiveResults').textContent = results.distinctives.length;
-  
+
   summary.style.display = 'block';
 }
 
 // ========== Render Universal Search Results ==========
 function renderUniversalSearchResults(results, query) {
   const container = document.getElementById('resultsTable');
-  
+
   if (results.total === 0) {
     renderEmpty('No results found');
     return;
   }
-  
+
   let html = '<div class="universal-results">';
-  
+
   // Schools
   if (results.schools.length > 0) {
     html += renderCategory('schools', 'Schools', results.schools, query);
   }
-  
+
   // Subjects
   if (results.subjects.length > 0) {
     html += renderCategory('subjects', 'Subjects', results.subjects, query);
   }
-  
+
   // CCAs
   if (results.ccas.length > 0) {
     html += renderCategory('ccas', 'CCAs', results.ccas, query);
   }
-  
+
   // Programmes
   if (results.programmes.length > 0) {
     html += renderCategory('programmes', 'Programmes', results.programmes, query);
   }
-  
+
   // Distinctives
   if (results.distinctives.length > 0) {
     html += renderCategory('distinctives', 'Distinctive Programmes', results.distinctives, query);
   }
-  
+
   html += '</div>';
   container.innerHTML = html;
 }
@@ -518,7 +565,10 @@ function renderCategory(type, title, items, query) {
   `;
   
   items.forEach(item => {
-    html += renderResultItem(type, item, query);
+    const itemHtml = renderResultItem(type, item, query);
+    if (itemHtml) { // Only add if valid HTML returned
+      html += itemHtml;
+    }
   });
   
   html += '</div></div>';
@@ -527,13 +577,31 @@ function renderCategory(type, title, items, query) {
 
 /// ========== Render Result Item (FIXED) ==========
 function renderResultItem(type, item, query) {
-  const itemId = item.id || item.school_id || item.subject_id || item.cca_id || item.programme_id || item.distinctive_id;
+  console.log('Rendering item:', type, item); // Debug log
   
-  let html = `<div class="result-item" onclick='viewItemDetails("${type}", ${itemId})'>`;
+  // Get the correct ID based on type
+  let itemId;
+  if (type === 'schools') {
+    itemId = item.school_id || item.id;
+  } else {
+    // For all non-school types, use school_id since they're linked to schools
+    itemId = item.school_id;
+  }
+  
+  console.log('Item ID:', itemId); // Debug log
+  
+  // Don't render if no valid ID
+  if (!itemId) {
+    console.warn('No valid ID for item:', item);
+    return '';
+  }
+  
+  let html = `<div class="result-item" onclick='viewItemDetails("schools", ${itemId})'>`;
   html += '<div class="result-item-header">';
   
   // Title with highlighted search term
-  const highlightedName = highlightSearchTerm(item.name, query);
+  const name = item.name || item.school_name || item.subject_desc || item.cca_generic_name || item.moe_programme_desc || 'Unnamed';
+  const highlightedName = highlightSearchTerm(name, query);
   html += `<div class="result-item-title">${highlightedName}</div>`;
   
   html += '</div>';
@@ -564,13 +632,14 @@ function renderResultItem(type, item, query) {
         ${item.principal_name}
       </span>`;
     }
-  } else if (item.school_count !== undefined) {
-    html += `<span class="meta-tag">
-      <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor">
-        <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z"/>
-      </svg>
-      ${item.school_count} school${item.school_count !== 1 ? 's' : ''}
-    </span>`;
+  } else {
+    // For non-school items, show the zone and level
+    if (item.zone_code) {
+      html += `<span class="meta-tag zone-${item.zone_code.toLowerCase()}">${item.zone_code}</span>`;
+    }
+    if (item.mainlevel_code) {
+      html += `<span class="meta-tag">${item.mainlevel_code}</span>`;
+    }
   }
   
   html += '</div>';
@@ -582,7 +651,7 @@ function renderResultItem(type, item, query) {
 // ========== Highlight Search Term ==========
 function highlightSearchTerm(text, searchTerm) {
   if (!text || !searchTerm) return text;
-  
+
   const regex = new RegExp(`(${searchTerm})`, 'gi');
   return text.replace(regex, '<mark>$1</mark>');
 }
@@ -603,6 +672,9 @@ window.viewItemDetails = async function(type, id) {
     
     // Use different endpoint for schools
     if (type === 'schools') {
+      response = await fetch(`/api/schools/${id}/details`);
+    } else if (type === 'ccas' || type === 'subjects' || type === 'programmes' || type === 'distinctives') {
+      // For non-school items, we need to handle them differently
       response = await fetch(`/api/schools/${id}/details`);
     } else {
       response = await fetch(`/api/search/details/${type}/${id}`);
@@ -636,11 +708,8 @@ function displayItemDetailsModal(type, data) {
   html += '</div>';
   html += '<div class="detail-modal-content">';
   
-  if (type === 'schools') {
-    html += renderSchoolDetails(data);
-  } else {
-    html += renderGenericDetails(type, data);
-  }
+  // Always render as school details since we're fetching school by ID
+  html += renderSchoolDetails(data);
   
   html += '</div>';
   html += '</div>';
@@ -651,7 +720,7 @@ function displayItemDetailsModal(type, data) {
 }
 
 // ========== Close Details Modal ==========
-window.closeDetailsModal = function() {
+window.closeDetailsModal = function () {
   const modal = document.getElementById('detailsModal');
   if (modal) {
     modal.remove();
@@ -661,9 +730,13 @@ window.closeDetailsModal = function() {
 
 // ========== Render School Details ==========
 function renderSchoolDetails(school) {
+  if (!school) {
+    return '<div class="detail-header"><p>No data available</p></div>';
+  }
+  
   let html = `
     <div class="detail-header">
-      <h4 class="detail-title">${school.school_name}</h4>
+      <h4 class="detail-title">${school.school_name || 'Unknown School'}</h4>
       <div class="detail-grid">
   `;
   
@@ -757,27 +830,27 @@ function renderSchoolDetails(school) {
 // ========== Render Generic Details ==========
 function renderGenericDetails(type, data) {
   let html = '<div class="detail-header">';
-  
+
   const mainField = getMainField(type, data);
   html += `<h4 class="detail-title">${mainField}</h4>`;
   html += '</div>';
-  
+
   if (data.schools && Array.isArray(data.schools)) {
     html += `<div class="school-list">`;
     html += `<h5>Schools offering this (${data.schools.length})</h5>`;
     html += '<div class="school-list-items">';
-    
+
     data.schools.forEach(school => {
       html += `<div class="school-list-item">`;
       html += `<span>${school.school_name}</span>`;
       html += `<span class="zone-badge zone-${school.zone_code.toLowerCase()}">${school.zone_code}</span>`;
       html += '</div>';
     });
-    
+
     html += '</div>';
     html += '</div>';
   }
-  
+
   return html;
 }
 
@@ -802,18 +875,18 @@ function getMainField(type, data) {
 }
 
 // ========== Clear Search ==========
-window.clearSearch = function() {
+window.clearSearch = function () {
   const searchBox = document.getElementById('searchBox');
   const clearBtn = document.getElementById('clearSearchBtn');
   const summary = document.getElementById('universalSearchSummary');
   const results = document.getElementById('resultsTable');
   const meta = document.getElementById('resultsMeta');
-  
+
   searchBox.value = '';
   if (clearBtn) clearBtn.style.display = 'none';
   if (summary) summary.style.display = 'none';
   if (meta) meta.textContent = '';
-  
+
   results.innerHTML = `
     <div class="empty-state">
       <svg width="64" height="64" viewBox="0 0 64 64" fill="none">
@@ -824,17 +897,17 @@ window.clearSearch = function() {
       <p>Try searching for a school name, subject, CCA, or programme</p>
     </div>
   `;
-  
+
   searchBox.focus();
 };
 
 // Update the existing DOMContentLoaded to handle clear button visibility
 document.addEventListener('DOMContentLoaded', () => {
   console.log('DOM Loaded - Attaching event listeners');
-  
+
   const navBtns = document.querySelectorAll('.nav-btn');
   console.log('Found nav buttons:', navBtns.length);
-  
+
   navBtns.forEach((btn, index) => {
     console.log(`Nav button ${index}:`, btn.dataset.view);
     btn.addEventListener('click', () => {
@@ -842,7 +915,7 @@ document.addEventListener('DOMContentLoaded', () => {
       switchView(btn.dataset.view);
     });
   });
-  
+
   // Allow Enter key to trigger search
   const searchBox = document.getElementById('searchBox');
   if (searchBox) {
@@ -851,7 +924,7 @@ document.addEventListener('DOMContentLoaded', () => {
         runQuery();
       }
     });
-    
+
     // Show/hide clear button as user types
     searchBox.addEventListener('input', (e) => {
       const clearBtn = document.getElementById('clearSearchBtn');
@@ -860,7 +933,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     });
   }
-  
+
   // Load school statistics on page load
   loadSchoolStats();
 });
@@ -869,7 +942,7 @@ console.log('Universal search functions integrated');
 // ========== CRUD Operations (GLOBAL) ==========
 
 // Add Modal Management
-window.showAddModal = function() {
+window.showAddModal = function () {
   console.log('Opening add modal');
   const modal = document.getElementById('addModal');
   if (modal) {
@@ -880,7 +953,7 @@ window.showAddModal = function() {
   }
 };
 
-window.hideAddModal = function() {
+window.hideAddModal = function () {
   console.log('Closing add modal');
   const modal = document.getElementById('addModal');
   if (modal) {
@@ -891,7 +964,7 @@ window.hideAddModal = function() {
 };
 
 // Edit Modal Management
-window.showEditModal = function(school) {
+window.showEditModal = function (school) {
   console.log('Opening edit modal for school:', school);
   const modal = document.getElementById('editModal');
   if (modal) {
@@ -903,7 +976,7 @@ window.showEditModal = function(school) {
     document.getElementById('editZoneCode').value = school.zone_code;
     document.getElementById('editMainlevelCode').value = school.mainlevel_code;
     document.getElementById('editPrincipalName').value = school.principal_name;
-    
+
     modal.classList.add('active');
     document.body.style.overflow = 'hidden';
   } else {
@@ -911,7 +984,7 @@ window.showEditModal = function(school) {
   }
 };
 
-window.hideEditModal = function() {
+window.hideEditModal = function () {
   console.log('Closing edit modal');
   const modal = document.getElementById('editModal');
   if (modal) {
@@ -922,20 +995,20 @@ window.hideEditModal = function() {
 };
 
 // Delete Modal Management
-window.showDeleteModal = function(schoolId, schoolName) {
+window.showDeleteModal = function (schoolId, schoolName) {
   console.log('Opening delete modal for:', schoolName);
   const modal = document.getElementById('deleteModal');
   if (modal) {
     pendingDeleteId = schoolId;
     pendingDeleteName = schoolName;
-    
+
     document.getElementById('deleteSchoolName').textContent = schoolName;
     modal.classList.add('active');
     document.body.style.overflow = 'hidden';
   }
 };
 
-window.hideDeleteModal = function() {
+window.hideDeleteModal = function () {
   console.log('Closing delete modal');
   const modal = document.getElementById('deleteModal');
   if (modal) {
@@ -947,10 +1020,10 @@ window.hideDeleteModal = function() {
 };
 
 // Create Operation
-window.addSchool = async function(event) {
+window.addSchool = async function (event) {
   event.preventDefault();
   console.log('Adding school...');
-  
+
   const schoolData = {
     school_name: document.getElementById('schoolName').value,
     address: document.getElementById('address').value,
@@ -959,24 +1032,24 @@ window.addSchool = async function(event) {
     mainlevel_code: document.getElementById('mainlevelCode').value,
     principal_name: document.getElementById('principalName').value
   };
-  
+
   console.log('School data:', schoolData);
-  
+
   try {
     const res = await fetch('/api/schools', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(schoolData)
     });
-    
+
     const result = await res.json();
     console.log('Server response:', result);
-    
+
     if (result.success || res.ok) {
       showToast('✓ School added successfully!', 'success');
       hideAddModal();
       loadSchoolStats();
-      
+
       // If user is on search view with results, refresh
       const searchBox = document.getElementById('searchBox');
       if (searchBox.value.trim()) {
@@ -992,16 +1065,16 @@ window.addSchool = async function(event) {
 };
 
 // Edit/Update Operation - Now uses modal
-window.editSchool = function(school) {
+window.editSchool = function (school) {
   console.log('Edit school clicked:', school);
   showEditModal(school);
 };
 
 // Update Operation (form submission)
-window.updateSchool = async function(event) {
+window.updateSchool = async function (event) {
   event.preventDefault();
   console.log('Updating school...');
-  
+
   const schoolId = document.getElementById('editSchoolId').value;
   const updatedData = {
     school_name: document.getElementById('editSchoolName').value,
@@ -1011,18 +1084,18 @@ window.updateSchool = async function(event) {
     mainlevel_code: document.getElementById('editMainlevelCode').value,
     principal_name: document.getElementById('editPrincipalName').value
   };
-  
+
   console.log('Updated data:', updatedData);
-  
+
   try {
     const res = await fetch(`/api/schools/${schoolId}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(updatedData)
     });
-    
+
     const result = await res.json();
-    
+
     if (result.success || res.ok) {
       showToast('✓ School updated successfully!', 'success');
       hideEditModal();
@@ -1037,24 +1110,24 @@ window.updateSchool = async function(event) {
 };
 
 // Delete Operation - Now uses modal
-window.deleteSchool = function(schoolId, schoolName) {
+window.deleteSchool = function (schoolId, schoolName) {
   console.log('Delete school clicked:', schoolId, schoolName);
   showDeleteModal(schoolId, schoolName);
 };
 
 // Confirm Delete Operation
-window.confirmDelete = async function() {
+window.confirmDelete = async function () {
   console.log('Confirming delete for:', pendingDeleteId, pendingDeleteName);
-  
+
   if (!pendingDeleteId) return;
-  
+
   try {
     const res = await fetch(`/api/schools/${pendingDeleteId}`, {
       method: 'DELETE'
     });
-    
+
     const result = await res.json();
-    
+
     if (result.success || res.ok) {
       showToast('✓ School deleted successfully!', 'success');
       hideDeleteModal();
@@ -1072,7 +1145,7 @@ window.confirmDelete = async function() {
 // ========== Statistics ==========
 function loadSchoolStats() {
   console.log('Loading school stats...');
-  
+
   fetch('/api/schools?name=')
     .then(res => res.json())
     .then(data => {
@@ -1096,22 +1169,22 @@ function showToast(message, type = 'info') {
   console.log('Toast:', type, message);
   const toast = document.getElementById('toast');
   const toastMessage = document.getElementById('toastMessage');
-  
+
   if (!toast || !toastMessage) {
     console.error('Toast elements not found');
     return;
   }
-  
+
   toastMessage.textContent = message;
   toast.className = 'toast show ' + type;
-  
+
   setTimeout(() => {
     toast.classList.remove('show');
   }, 3000);
 }
 
 // ========== Utility Functions (GLOBAL) ==========
-window.showAbout = function() {
+window.showAbout = function () {
   alert(
     'EduQuery SG\n\n' +
     'A comprehensive database management system for Singapore schools.\n\n' +
@@ -1125,7 +1198,7 @@ window.showAbout = function() {
   );
 };
 
-window.showHelp = function() {
+window.showHelp = function () {
   alert(
     'How to Use EduQuery\n\n' +
     'SEARCH:\n' +

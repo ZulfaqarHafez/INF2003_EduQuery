@@ -61,7 +61,7 @@ app.get('/api/schools', async (req, res) => {
   try {
     const { name } = req.query;
     let query, params;
-    
+
     if (name && name.trim() !== '') {
       // Search by name
       query = `SELECT school_id, school_name, address, postal_code, zone_code, mainlevel_code, principal_name
@@ -77,14 +77,14 @@ app.get('/api/schools', async (req, res) => {
                ORDER BY school_name ASC`;
       params = [];
     }
-    
+
     const result = await pool.query(query, params);
-    
+
     // Log search activity to MongoDB
     if (name) {
       logActivity('search_schools', { query: name, results_count: result.rows.length });
     }
-    
+
     res.json(result.rows);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -95,12 +95,12 @@ app.get('/api/schools', async (req, res) => {
 app.post('/api/schools', async (req, res) => {
   try {
     const { school_name, address, postal_code, zone_code, mainlevel_code, principal_name } = req.body;
-    
+
     // Validate required fields
     if (!school_name || !address || !postal_code || !zone_code || !mainlevel_code || !principal_name) {
       return res.status(400).json({ error: 'All fields are required' });
     }
-    
+
     // Insert into PostgreSQL
     const result = await pool.query(
       `INSERT INTO Schools (school_name, address, postal_code, zone_code, mainlevel_code, principal_name)
@@ -108,13 +108,13 @@ app.post('/api/schools', async (req, res) => {
        RETURNING *`,
       [school_name, address, postal_code, zone_code, mainlevel_code, principal_name]
     );
-    
+
     // Log activity to MongoDB
-    logActivity('create_school', { 
+    logActivity('create_school', {
       school_id: result.rows[0].school_id,
-      school_name: school_name 
+      school_name: school_name
     });
-    
+
     res.json({ success: true, data: result.rows[0] });
   } catch (err) {
     console.error('Create school error:', err);
@@ -127,12 +127,12 @@ app.put('/api/schools/:id', async (req, res) => {
   try {
     const { id } = req.params;
     const { school_name, address, postal_code, zone_code, mainlevel_code, principal_name } = req.body;
-    
+
     // Validate required fields
     if (!school_name || !address || !postal_code || !zone_code || !mainlevel_code || !principal_name) {
       return res.status(400).json({ error: 'All fields are required' });
     }
-    
+
     // Update in PostgreSQL
     const result = await pool.query(
       `UPDATE Schools 
@@ -142,17 +142,17 @@ app.put('/api/schools/:id', async (req, res) => {
        RETURNING *`,
       [school_name, address, postal_code, zone_code, mainlevel_code, principal_name, id]
     );
-    
+
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'School not found' });
     }
-    
+
     // Log activity to MongoDB
-    logActivity('update_school', { 
+    logActivity('update_school', {
       school_id: parseInt(id),
-      school_name: school_name 
+      school_name: school_name
     });
-    
+
     res.json({ success: true, data: result.rows[0] });
   } catch (err) {
     console.error('Update school error:', err);
@@ -164,33 +164,33 @@ app.put('/api/schools/:id', async (req, res) => {
 app.delete('/api/schools/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    
+
     // First, get school name for logging
     const schoolResult = await pool.query('SELECT school_name FROM Schools WHERE school_id = $1', [id]);
     const schoolName = schoolResult.rows[0]?.school_name || 'Unknown';
-    
+
     // Delete related records (foreign key constraints)
     await pool.query('DELETE FROM School_Subjects WHERE school_id = $1', [id]);
     await pool.query('DELETE FROM School_CCAs WHERE school_id = $1', [id]);
     await pool.query('DELETE FROM School_Programmes WHERE school_id = $1', [id]);
     await pool.query('DELETE FROM School_Distinctives WHERE school_id = $1', [id]);
-    
+
     // Delete the school
     const result = await pool.query(
       'DELETE FROM Schools WHERE school_id = $1 RETURNING *',
       [id]
     );
-    
+
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'School not found' });
     }
-    
+
     // Log activity to MongoDB
-    logActivity('delete_school', { 
+    logActivity('delete_school', {
       school_id: parseInt(id),
-      school_name: schoolName 
+      school_name: schoolName
     });
-    
+
     res.json({ success: true, message: 'School deleted successfully' });
   } catch (err) {
     console.error('Delete school error:', err);
@@ -202,7 +202,7 @@ app.delete('/api/schools/:id', async (req, res) => {
 app.get('/api/schools/:id/details', async (req, res) => {
   try {
     const { id } = req.params;
-    
+
     const query = `
       SELECT 
         s.*,
@@ -235,21 +235,21 @@ app.get('/api/schools/:id/details', async (req, res) => {
                r.autonomous_ind, r.gifted_ind, r.ip_ind, r.sap_ind, 
                r.bus_desc, r.mrt_desc
     `;
-    
+
     const result = await pool.query(query, [id]);
-    
+
     if (result.rows.length === 0) {
       return res.status(404).json({
         success: false,
         error: 'School not found'
       });
     }
-    
+
     res.json({
       success: true,
       school: result.rows[0]
     });
-    
+
   } catch (err) {
     console.error('School details error:', err);
     res.status(500).json({
@@ -268,18 +268,18 @@ app.get('/api/schools/:id/details', async (req, res) => {
 app.get('/api/schools/subjects', async (req, res) => {
   try {
     const { name } = req.query;
-    
+
     if (!name || name.trim() === '') {
       return res.json([]);
     }
-    
+
     const result = await pool.query(
       `SELECT DISTINCT
+        s.school_id,
         s.school_name,
         s.zone_code,
         s.mainlevel_code,
-        subj.subject_desc,
-        subj.subject_id
+        subj.subject_desc
        FROM Schools s
        JOIN School_Subjects ss ON s.school_id = ss.school_id
        JOIN Subjects subj ON subj.subject_id = ss.subject_id
@@ -291,9 +291,9 @@ app.get('/api/schools/subjects', async (req, res) => {
        LIMIT 100`,
       [`%${name}%`]
     );
-    
+
     logActivity('search_subjects', { query: name, results_count: result.rows.length });
-    
+
     res.json(result.rows);
   } catch (err) {
     console.error('Subject search error:', err);
@@ -305,20 +305,18 @@ app.get('/api/schools/subjects', async (req, res) => {
 app.get('/api/schools/ccas', async (req, res) => {
   try {
     const { name } = req.query;
-    
+
     if (!name || name.trim() === '') {
       return res.json([]);
     }
-    
+
     const result = await pool.query(
       `SELECT DISTINCT
+        s.school_id,
         s.school_name,
         s.zone_code,
         s.mainlevel_code,
-        c.cca_generic_name,
-        c.cca_grouping_desc,
-        sca.cca_customized_name,
-        sca.school_section
+        c.cca_generic_name
        FROM Schools s
        JOIN School_CCAs sca ON s.school_id = sca.school_id
        JOIN CCAs c ON c.cca_id = sca.cca_id
@@ -334,9 +332,9 @@ app.get('/api/schools/ccas', async (req, res) => {
        LIMIT 100`,
       [`%${name}%`]
     );
-    
+
     logActivity('search_ccas', { query: name, results_count: result.rows.length });
-    
+
     res.json(result.rows);
   } catch (err) {
     console.error('CCA search error:', err);
@@ -348,13 +346,14 @@ app.get('/api/schools/ccas', async (req, res) => {
 app.get('/api/schools/programmes', async (req, res) => {
   try {
     const { name } = req.query;
-    
+
     if (!name || name.trim() === '') {
       return res.json([]);
     }
-    
+
     const result = await pool.query(
       `SELECT DISTINCT
+        s.school_id,
         s.school_name,
         s.zone_code,
         s.mainlevel_code,
@@ -370,9 +369,9 @@ app.get('/api/schools/programmes', async (req, res) => {
        LIMIT 100`,
       [`%${name}%`]
     );
-    
+
     logActivity('search_programmes', { query: name, results_count: result.rows.length });
-    
+
     res.json(result.rows);
   } catch (err) {
     console.error('Programme search error:', err);
@@ -384,20 +383,20 @@ app.get('/api/schools/programmes', async (req, res) => {
 app.get('/api/schools/distinctives', async (req, res) => {
   try {
     const { name } = req.query;
-    
+
     if (!name || name.trim() === '') {
       return res.json([]);
     }
-    
+
     const result = await pool.query(
       `SELECT DISTINCT
+        s.school_id,
         s.school_name,
         s.zone_code,
         s.mainlevel_code,
+        COALESCE(d.alp_title, d.llp_title) as distinctive_name,
         d.alp_domain,
-        d.alp_title,
-        d.llp_domain1,
-        d.llp_title
+        d.llp_domain1
        FROM Schools s
        JOIN School_Distinctives sd ON s.school_id = sd.school_id
        JOIN Distinctive_Programmes d ON d.distinctive_id = sd.distinctive_id
@@ -417,9 +416,9 @@ app.get('/api/schools/distinctives', async (req, res) => {
        LIMIT 100`,
       [`%${name}%`]
     );
-    
+
     logActivity('search_distinctives', { query: name, results_count: result.rows.length });
-    
+
     res.json(result.rows);
   } catch (err) {
     console.error('Distinctive search error:', err);
@@ -442,13 +441,13 @@ app.get('/api/analytics/schools-by-zone', async (req, res) => {
       GROUP BY zone_code
       ORDER BY total_schools DESC
     `;
-    
+
     const result = await pool.query(query);
-    
-    logActivity('view_zone_statistics', { 
-      zones_analyzed: result.rows.length 
+
+    logActivity('view_zone_statistics', {
+      zones_analyzed: result.rows.length
     });
-    
+
     res.json({
       success: true,
       data: result.rows
@@ -481,19 +480,19 @@ app.get('/api/analytics/schools-subject-count', async (req, res) => {
       ORDER BY subject_count DESC
       LIMIT 20
     `;
-    
+
     const result = await pool.query(query);
-    
-    logActivity('view_subject_diversity', { 
-      schools_analyzed: result.rows.length 
+
+    logActivity('view_subject_diversity', {
+      schools_analyzed: result.rows.length
     });
-    
+
     res.json({
       success: true,
       data: result.rows,
       summary: {
         total_schools: result.rows.length,
-        avg_subjects: result.rows.length > 0 
+        avg_subjects: result.rows.length > 0
           ? (result.rows.reduce((sum, row) => sum + parseInt(row.subject_count), 0) / result.rows.length).toFixed(2)
           : 0
       }
@@ -533,13 +532,13 @@ app.get('/api/analytics/above-average-subjects', async (req, res) => {
       WHERE sc.subject_count > a.avg_count
       ORDER BY sc.subject_count DESC
     `;
-    
+
     const result = await pool.query(query);
-    
-    logActivity('view_above_average_schools', { 
-      schools_found: result.rows.length 
+
+    logActivity('view_above_average_schools', {
+      schools_found: result.rows.length
     });
-    
+
     res.json({
       success: true,
       data: result.rows,
@@ -570,13 +569,13 @@ app.get('/api/analytics/cca-participation', async (req, res) => {
       ORDER BY school_count DESC
       LIMIT 15
     `;
-    
+
     const result = await pool.query(query);
-    
-    logActivity('view_cca_participation', { 
-      ccas_analyzed: result.rows.length 
+
+    logActivity('view_cca_participation', {
+      ccas_analyzed: result.rows.length
     });
-    
+
     res.json({
       success: true,
       data: result.rows
@@ -636,9 +635,9 @@ app.get('/api/analytics/data-completeness', async (req, res) => {
       ORDER BY completeness_score DESC, subject_count DESC
       LIMIT 50
     `;
-    
+
     const result = await pool.query(query);
-    
+
     const summary = {
       total_analyzed: result.rows.length,
       complete_schools: result.rows.filter(r => r.completeness_status === 'Complete').length,
@@ -646,9 +645,9 @@ app.get('/api/analytics/data-completeness', async (req, res) => {
       fair_schools: result.rows.filter(r => r.completeness_status === 'Fair').length,
       incomplete_schools: result.rows.filter(r => r.completeness_status === 'Incomplete').length
     };
-    
+
     logActivity('view_data_completeness', summary);
-    
+
     res.json({
       success: true,
       data: result.rows,
@@ -692,13 +691,13 @@ app.get('/api/analytics/zone-comparison', async (req, res) => {
       GROUP BY s.zone_code
       ORDER BY total_schools DESC
     `;
-    
+
     const result = await pool.query(query);
-    
-    logActivity('view_zone_comparison', { 
-      zones: result.rows.length 
+
+    logActivity('view_zone_comparison', {
+      zones: result.rows.length
     });
-    
+
     res.json({
       success: true,
       data: result.rows
@@ -710,8 +709,6 @@ app.get('/api/analytics/zone-comparison', async (req, res) => {
 });
 
 // Universal Search - search across all tables
-// ===== UNIVERSAL SEARCH (Simplified & Efficient) =====
-
 app.get('/api/search/universal', async (req, res) => {
   try {
     const { query } = req.query;
@@ -734,7 +731,8 @@ app.get('/api/search/universal', async (req, res) => {
         s.address AS description,
         s.zone_code,
         s.mainlevel_code,
-        s.principal_name
+        s.principal_name,
+        s.school_id
       FROM schools s
       WHERE s.school_name ILIKE $1
          OR s.address ILIKE $1
@@ -744,30 +742,32 @@ app.get('/api/search/universal', async (req, res) => {
 
     // --- Subjects ---
     const subjectsQuery = `
-      SELECT 
-        'subject' AS type,
-        subj.subject_id AS id,
-        subj.subject_desc AS name,
-        STRING_AGG(DISTINCT sch.school_name, ', ') AS description,
-        COUNT(DISTINCT ss.school_id) AS school_count
-      FROM subjects subj
-      LEFT JOIN school_subjects ss ON subj.subject_id = ss.subject_id
-      LEFT JOIN schools sch ON ss.school_id = sch.school_id
-      WHERE subj.subject_desc ILIKE $1
-      GROUP BY subj.subject_id, subj.subject_desc
-      ORDER BY subj.subject_desc;
-    `;
+    SELECT 
+      'subject' AS type,
+      s.school_id,
+      s.school_name AS name,
+      subj.subject_desc AS description,
+      s.zone_code,
+      s.mainlevel_code
+    FROM subjects subj
+      JOIN school_subjects ss ON subj.subject_id = ss.subject_id
+      JOIN schools s ON ss.school_id = s.school_id
+    WHERE subj.subject_desc ILIKE $1
+      AND subj.subject_desc IS NOT NULL
+      AND TRIM(subj.subject_desc) != ''
+      AND UPPER(subj.subject_desc) NOT IN ('NA', 'N/A', 'NIL', 'NONE', '-')
+    ORDER BY s.school_name;
+  `;
 
     // --- CCAs ---
     const ccasQuery = `
       SELECT 
         'cca' AS type,
-        sch.school_id AS id,
+        sch.school_id,
         sch.school_name AS name,
-        c.cca_generic_name AS cca_category,
-        c.cca_grouping_desc AS cca_activity,
-        sc.cca_customized_name AS cca_label,
-        sc.school_section
+        c.cca_generic_name AS description,
+        sch.zone_code,
+        sch.mainlevel_code
       FROM CCAs c
       JOIN School_CCAs sc ON c.cca_id = sc.cca_id
       JOIN Schools sch ON sc.school_id = sch.school_id
@@ -778,40 +778,43 @@ app.get('/api/search/universal', async (req, res) => {
       ORDER BY sch.school_name
     `;
 
-
     // --- Programmes ---
     const programmesQuery = `
       SELECT 
         'programme' AS type,
-        p.programme_id AS id,
-        p.moe_programme_desc AS name,
-        STRING_AGG(DISTINCT sch.school_name, ', ') AS description,
-        COUNT(DISTINCT sp.school_id) AS school_count
+        sch.school_id,
+        sch.school_name AS name,
+        p.moe_programme_desc AS description,
+        sch.zone_code,
+        sch.mainlevel_code
       FROM programmes p
-      LEFT JOIN school_programmes sp ON p.programme_id = sp.programme_id
-      LEFT JOIN schools sch ON sp.school_id = sch.school_id
+      JOIN school_programmes sp ON p.programme_id = sp.programme_id
+      JOIN schools sch ON sp.school_id = sch.school_id
       WHERE p.moe_programme_desc ILIKE $1
-      GROUP BY p.programme_id, p.moe_programme_desc
-      ORDER BY p.moe_programme_desc;
+        AND p.moe_programme_desc IS NOT NULL
+        AND TRIM(p.moe_programme_desc) != ''
+        AND UPPER(p.moe_programme_desc) NOT IN ('NA', 'N/A', 'NIL', 'NONE', '-')
+      ORDER BY sch.school_name;
     `;
 
     // --- Distinctive Programmes (ALP / LLP) ---
     const distinctivesQuery = `
       SELECT 
         'distinctive' AS type,
-        d.distinctive_id AS id,
-        COALESCE(d.alp_title, d.llp_title, 'Distinctive Programme') AS name,
-        COALESCE(d.alp_domain, d.llp_domain1, '') AS description,
-        COUNT(DISTINCT sd.school_id) AS school_count
+        sch.school_id,
+        sch.school_name AS name,
+        COALESCE(d.alp_title, d.llp_title, 'Distinctive Programme') AS description,
+        sch.zone_code,
+        sch.mainlevel_code
       FROM distinctive_programmes d
-      LEFT JOIN school_distinctives sd ON d.distinctive_id = sd.distinctive_id
+      JOIN school_distinctives sd ON d.distinctive_id = sd.distinctive_id
+      JOIN schools sch ON sd.school_id = sch.school_id
       WHERE 
         COALESCE(d.alp_title, '') ILIKE $1 OR
         COALESCE(d.llp_title, '') ILIKE $1 OR
         COALESCE(d.alp_domain, '') ILIKE $1 OR
         COALESCE(d.llp_domain1, '') ILIKE $1
-      GROUP BY d.distinctive_id, d.alp_title, d.llp_title, d.alp_domain, d.llp_domain1
-      ORDER BY COALESCE(d.alp_title, d.llp_title);
+      ORDER BY sch.school_name;
     `;
 
     // --- Execute all in parallel ---
@@ -866,7 +869,6 @@ app.get('/api/search/universal', async (req, res) => {
     });
   }
 });
-
 
 // Get details for a specific item found in universal search
 app.get('/api/search/details/:type/:id', async (req, res) => {
@@ -974,18 +976,18 @@ app.get('/api/search/details/:type/:id', async (req, res) => {
         break;
 
       default:
-        return res.status(400).json({ 
-          success: false, 
-          error: 'Invalid type' 
+        return res.status(400).json({
+          success: false,
+          error: 'Invalid type'
         });
     }
 
     const result = await pool.query(query, params);
-    
+
     if (result.rows.length === 0) {
-      return res.status(404).json({ 
-        success: false, 
-        error: 'Item not found' 
+      return res.status(404).json({
+        success: false,
+        error: 'Item not found'
       });
     }
 
@@ -997,9 +999,9 @@ app.get('/api/search/details/:type/:id', async (req, res) => {
 
   } catch (err) {
     console.error('Details fetch error:', err);
-    res.status(500).json({ 
+    res.status(500).json({
       success: false,
-      error: err.message 
+      error: err.message
     });
   }
 });
@@ -1014,7 +1016,7 @@ app.get('/api/analytics/logs', async (req, res) => {
       .sort({ timestamp: -1 })
       .limit(50)
       .toArray();
-    
+
     res.json(logs);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -1028,15 +1030,16 @@ app.get('/api/analytics/popular', async (req, res) => {
     const popular = await db.collection('activity_logs')
       .aggregate([
         { $match: { action: 'search_schools' } },
-        { $group: { 
-            _id: '$data.query', 
-            count: { $sum: 1 } 
+        {
+          $group: {
+            _id: '$data.query',
+            count: { $sum: 1 }
           }
         },
         { $sort: { count: -1 } },
         { $limit: 10 }
       ]).toArray();
-    
+
     res.json(popular);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -1047,7 +1050,7 @@ app.get('/api/analytics/popular', async (req, res) => {
 app.post('/api/search/advanced', async (req, res) => {
   try {
     const searchParams = req.body;
-    
+
     if (Object.keys(searchParams).length === 0) {
       return res.status(400).json({
         success: false,
@@ -1089,7 +1092,7 @@ app.post('/api/search/advanced', async (req, res) => {
         AND TRIM(${col}) != '' 
         AND UPPER(${col}) NOT IN ('NA', 'N/A', 'NIL', 'NONE', '-'))
       `).join(' OR ');
-      
+
       whereClauses.push(`(${conditions})`);
       queryParams.push(`%${searchValue}%`);
       paramCount++;
@@ -1326,7 +1329,7 @@ app.post('/api/search/advanced', async (req, res) => {
       queryParams.push(`%${searchParams.alp_domain}%`);
       paramCount++;
     }
-    
+
     if (searchParams.alp_title) {
       needsDistinctiveJoin = true;
       whereClauses.push(`
@@ -1338,7 +1341,7 @@ app.post('/api/search/advanced', async (req, res) => {
       queryParams.push(`%${searchParams.alp_title}%`);
       paramCount++;
     }
-    
+
     if (searchParams.llp_domain1) {
       needsDistinctiveJoin = true;
       whereClauses.push(`
@@ -1350,7 +1353,7 @@ app.post('/api/search/advanced', async (req, res) => {
       queryParams.push(`%${searchParams.llp_domain1}%`);
       paramCount++;
     }
-    
+
     if (searchParams.llp_title) {
       needsDistinctiveJoin = true;
       whereClauses.push(`
