@@ -1096,6 +1096,324 @@ app.get('/api/search/details/:type/:id', async (req, res) => {
     });
   }
 });
+
+// ========== SCHOOL COMPARISON ENDPOINT ==========
+// Add this to server.js after the /api/search/details/:type/:id endpoint
+app.post('/api/schools/compare', async (req, res) => {
+  try {
+    const { school1_id, school2_id } = req.body;
+
+    if (!school1_id || !school2_id) {
+      return res.status(400).json({
+        success: false,
+        message: 'Both school IDs are required'
+      });
+    }
+
+    // Fetch comprehensive data for both schools
+    const schoolQuery = `
+      SELECT 
+        s.*,
+        r.email_address,
+        r.telephone_no,
+        r.first_vp_name,
+        r.second_vp_name,
+        r.type_code,
+        r.nature_code,
+        r.session_code,
+        r.autonomous_ind,
+        r.gifted_ind,
+        r.ip_ind,
+        r.sap_ind,
+        r.bus_desc,
+        r.mrt_desc,
+        COUNT(DISTINCT ss.subject_id) as subject_count,
+        COUNT(DISTINCT sc.cca_id) as cca_count,
+        COUNT(DISTINCT sp.programme_id) as programme_count,
+        COUNT(DISTINCT sd.distinctive_id) as distinctive_count
+      FROM Schools s
+      LEFT JOIN raw_general_info r ON LOWER(s.school_name) = LOWER(r.school_name)
+      LEFT JOIN School_Subjects ss ON s.school_id = ss.school_id
+      LEFT JOIN School_CCAs sc ON s.school_id = sc.school_id
+      LEFT JOIN School_Programmes sp ON s.school_id = sp.school_id
+      LEFT JOIN School_Distinctives sd ON s.school_id = sd.school_id
+      WHERE s.school_id = $1
+      GROUP BY s.school_id, r.email_address, r.telephone_no, r.first_vp_name, 
+               r.second_vp_name, r.type_code, r.nature_code, r.session_code,
+               r.autonomous_ind, r.gifted_ind, r.ip_ind, r.sap_ind, 
+               r.bus_desc, r.mrt_desc
+    `;
+
+    const subjectsQuery = `
+      SELECT DISTINCT subj.subject_desc
+      FROM school_subjects ss
+      JOIN subjects subj ON ss.subject_id = subj.subject_id
+      WHERE ss.school_id = $1
+      AND subj.subject_desc IS NOT NULL
+      AND TRIM(subj.subject_desc) != ''
+      ORDER BY subj.subject_desc
+    `;
+
+    const ccasQuery = `
+      SELECT 
+        c.cca_generic_name,
+        c.cca_grouping_desc,
+        sc.cca_customized_name
+      FROM school_ccas sc
+      JOIN ccas c ON sc.cca_id = c.cca_id
+      WHERE sc.school_id = $1
+      AND c.cca_generic_name IS NOT NULL
+      ORDER BY c.cca_grouping_desc, c.cca_generic_name
+    `;
+
+    const programmesQuery = `
+      SELECT DISTINCT p.moe_programme_desc
+      FROM school_programmes sp
+      JOIN programmes p ON sp.programme_id = p.programme_id
+      WHERE sp.school_id = $1
+      AND p.moe_programme_desc IS NOT NULL
+      ORDER BY p.moe_programme_desc
+    `;
+
+    const distinctivesQuery = `
+      SELECT DISTINCT
+        d.alp_domain,
+        d.alp_title,
+        d.llp_domain1,
+        d.llp_title
+      FROM school_distinctives sd
+      JOIN distinctive_programmes d ON sd.distinctive_id = d.distinctive_id
+      WHERE sd.school_id = $1
+    `;
+
+    // Fetch all data in parallel
+    const [
+      school1Result, 
+      school2Result,
+      subjects1,
+      subjects2,
+      ccas1,
+      ccas2,
+      programmes1,
+      programmes2,
+      distinctives1,
+      distinctives2
+    ] = await Promise.all([
+      pool.query(schoolQuery, [school1_id]),
+      pool.query(schoolQuery, [school2_id]),
+      pool.query(subjectsQuery, [school1_id]),
+      pool.query(subjectsQuery, [school2_id]),
+      pool.query(ccasQuery, [school1_id]),
+      pool.query(ccasQuery, [school2_id]),
+      pool.query(programmesQuery, [school1_id]),
+      pool.query(programmesQuery, [school2_id]),
+      pool.query(distinctivesQuery, [school1_id]),
+      pool.query(distinctivesQuery, [school2_id])
+    ]);
+
+    if (school1Result.rows.length === 0 || school2Result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'One or both schools not found'
+      });
+    }
+
+    // Log activity
+    logActivity('school_comparison', {
+      school1_id,
+      school2_id,
+      school1_name: school1Result.rows[0].school_name,
+      school2_name: school2Result.rows[0].school_name
+    });
+
+    res.json({
+      success: true,
+      school1: {
+        ...school1Result.rows[0],
+        subjects: subjects1.rows.map(r => r.subject_desc),
+        ccas: ccas1.rows,
+        programmes: programmes1.rows.map(r => r.moe_programme_desc),
+        distinctives: distinctives1.rows
+      },
+      school2: {
+        ...school2Result.rows[0],
+        subjects: subjects2.rows.map(r => r.subject_desc),
+        ccas: ccas2.rows,
+        programmes: programmes2.rows.map(r => r.moe_programme_desc),
+        distinctives: distinctives2.rows
+      }
+    });
+
+  } catch (err) {
+    console.error('School comparison error:', err);
+    res.status(500).json({
+      success: false,
+      error: err.message
+    });
+  }
+});
+
+// ========== POSTAL CODE TO COORDINATES LOOKUP ==========
+// Add this helper endpoint for postal code conversion
+app.get('/api/postal-code/:postalCode', async (req, res) => {
+  try {
+    const { postalCode } = req.params;
+    
+    // Query to find coordinates from raw_general_info using postal code
+    const query = `
+      SELECT DISTINCT
+        postal_code,
+        latitude::decimal as latitude,
+        longitude::decimal as longitude,
+        school_name
+      FROM raw_general_info
+      WHERE postal_code = $1
+        AND latitude IS NOT NULL 
+        AND longitude IS NOT NULL
+        AND latitude != 'NA'
+        AND longitude != 'NA'
+      LIMIT 1
+    `;
+    
+    const result = await pool.query(query, [postalCode]);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Postal code not found or no coordinates available'
+      });
+    }
+    
+    res.json({
+      success: true,
+      postal_code: postalCode,
+      latitude: parseFloat(result.rows[0].latitude),
+      longitude: parseFloat(result.rows[0].longitude)
+    });
+    
+  } catch (err) {
+    console.error('Postal code lookup error:', err);
+    res.status(500).json({
+      success: false,
+      error: err.message
+    });
+  }
+});
+
+// ========== SEARCH BY POSTAL CODE DISTANCE ==========
+app.post('/api/schools/search-by-postal-code', async (req, res) => {
+  try {
+    const { postal_code, radius_km } = req.body;
+
+    if (!postal_code || !radius_km) {
+      return res.status(400).json({
+        success: false,
+        message: 'Postal code and radius are required'
+      });
+    }
+
+    // First, get coordinates for the postal code
+    const coordsQuery = `
+      SELECT DISTINCT
+        latitude::decimal as lat,
+        longitude::decimal as lon
+      FROM raw_general_info
+      WHERE postal_code = $1
+        AND latitude IS NOT NULL 
+        AND longitude IS NOT NULL
+        AND latitude != 'NA'
+        AND longitude != 'NA'
+      LIMIT 1
+    `;
+    
+    const coordsResult = await pool.query(coordsQuery, [postal_code]);
+    
+    if (coordsResult.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Postal code not found or coordinates not available'
+      });
+    }
+    
+    const { lat, lon } = coordsResult.rows[0];
+
+    // Now search for schools within radius using Haversine formula
+    const query = `
+      WITH school_coordinates AS (
+        SELECT 
+          s.*,
+          r.latitude::decimal as school_lat,
+          r.longitude::decimal as school_lon,
+          r.email_address,
+          r.telephone_no,
+          r.type_code,
+          r.nature_code
+        FROM Schools s
+        LEFT JOIN raw_general_info r ON LOWER(s.school_name) = LOWER(r.school_name)
+        WHERE r.latitude IS NOT NULL 
+          AND r.longitude IS NOT NULL
+          AND r.latitude != 'NA'
+          AND r.longitude != 'NA'
+      ),
+      distances AS (
+        SELECT 
+          *,
+          (
+            6371 * acos(
+              cos(radians($1)) * cos(radians(school_lat)) *
+              cos(radians(school_lon) - radians($2)) +
+              sin(radians($1)) * sin(radians(school_lat))
+            )
+          ) AS distance_km
+        FROM school_coordinates
+      )
+      SELECT 
+        school_id,
+        school_name,
+        address,
+        postal_code,
+        zone_code,
+        mainlevel_code,
+        principal_name,
+        email_address,
+        telephone_no,
+        type_code,
+        nature_code,
+        ROUND(distance_km::numeric, 2) as distance_km
+      FROM distances
+      WHERE distance_km <= $3
+      ORDER BY distance_km ASC
+      LIMIT 100
+    `;
+
+    const result = await pool.query(query, [lat, lon, radius_km]);
+
+    logActivity('search_by_postal_code', {
+      postal_code,
+      radius_km,
+      results_count: result.rows.length
+    });
+
+    res.json({
+      success: true,
+      results: result.rows,
+      search_params: {
+        postal_code,
+        radius_km,
+        center_latitude: lat,
+        center_longitude: lon
+      }
+    });
+
+  } catch (err) {
+    console.error('Postal code distance search error:', err);
+    res.status(500).json({
+      success: false,
+      error: err.message
+    });
+  }
+});
+
 // ========== MONGODB ANALYTICS ROUTES ==========
 
 // Get activity logs

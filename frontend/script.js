@@ -1234,6 +1234,578 @@ function displayEnhancedSchoolModal(data) {
     document.body.insertAdjacentHTML('beforeend', html);
     document.body.style.overflow = 'hidden';
 }
+// ========== SCHOOL COMPARISON FUNCTIONS ==========
+// Add these functions to script.js after the displayEnhancedSchoolModal function
+
+// Comparison state
+let comparisonMode = {
+  active: false,
+  school1: null,
+  school2: null
+};
+
+window.startComparisonMode = function() {
+  comparisonMode.active = true;
+  comparisonMode.school1 = null;
+  comparisonMode.school2 = null;
+  
+  showComparisonNotification();
+  
+  // Add click listeners to all school rows in results
+  addComparisonClickListeners();
+  
+  showToast('Click on two schools to compare', 'info');
+};
+
+function showComparisonNotification() {
+  const html = `
+    <div id="comparisonNotification" class="comparison-notification">
+      <div class="comparison-notification-content">
+        <div class="comparison-notification-header">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+            <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z"/>
+            <path fill-rule="evenodd" d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5z"/>
+          </svg>
+          <span>Comparison Mode</span>
+        </div>
+        <div class="comparison-notification-body">
+          <div class="comparison-school-slot" id="comparisonSlot1">
+            <div class="slot-number">1</div>
+            <div class="slot-text">Click a school</div>
+          </div>
+          <div class="comparison-school-slot" id="comparisonSlot2">
+            <div class="slot-number">2</div>
+            <div class="slot-text">Click a school</div>
+          </div>
+        </div>
+        <button class="btn-danger" onclick="cancelComparison()">
+          Cancel Comparison
+        </button>
+      </div>
+    </div>
+  `;
+  
+  document.body.insertAdjacentHTML('beforeend', html);
+}
+
+function addComparisonClickListeners() {
+  // Add to all existing school rows
+  document.querySelectorAll('.data-table tbody tr').forEach(row => {
+    const schoolId = extractSchoolIdFromRow(row);
+    if (schoolId) {
+      row.style.cursor = 'pointer';
+      row.classList.add('comparison-selectable');
+      row.onclick = (e) => {
+        // Don't trigger if clicking action buttons
+        if (e.target.closest('button')) return;
+        selectSchoolForComparison(row, schoolId);
+      };
+    }
+  });
+  
+  // Add to clickable result items
+  document.querySelectorAll('.result-item').forEach(item => {
+    const schoolId = item.getAttribute('onclick')?.match(/viewItemDetails\("schools", (\d+)\)/)?.[1];
+    if (schoolId) {
+      item.classList.add('comparison-selectable');
+      const originalOnclick = item.onclick;
+      item.onclick = (e) => {
+        if (comparisonMode.active) {
+          e.stopPropagation();
+          selectSchoolForComparison(item, schoolId);
+        } else if (originalOnclick) {
+          originalOnclick.call(item, e);
+        }
+      };
+    }
+  });
+}
+
+function extractSchoolIdFromRow(row) {
+  // Try to find school_id from the first cell (school_id column)
+  const firstCell = row.cells[0];
+  if (firstCell && !isNaN(firstCell.textContent.trim())) {
+    return firstCell.textContent.trim();
+  }
+  
+  // Try from edit button
+  const editBtn = row.querySelector('.btn-edit');
+  if (editBtn) {
+    const onclickAttr = editBtn.getAttribute('onclick');
+    const match = onclickAttr?.match(/school_id['":]?\s*[:=]?\s*(\d+)/);
+    if (match) return match[1];
+    
+    // Try to extract from JSON in onclick
+    const jsonMatch = onclickAttr?.match(/\{[^}]+school_id['":]?\s*:\s*(\d+)/);
+    if (jsonMatch) return jsonMatch[1];
+  }
+  
+  // Try from delete button
+  const deleteBtn = row.querySelector('.btn-danger');
+  if (deleteBtn) {
+    const onclickAttr = deleteBtn.getAttribute('onclick');
+    const match = onclickAttr?.match(/deleteSchool\((\d+)/);
+    if (match) return match[1];
+  }
+  
+  return null;
+}
+
+function selectSchoolForComparison(element, schoolId) {
+  if (!comparisonMode.active) return;
+  
+  // If this school is already selected, deselect it
+  if (comparisonMode.school1?.id === schoolId) {
+    comparisonMode.school1 = null;
+    updateComparisonSlot(1, null);
+    element.classList.remove('comparison-selected-1');
+    return;
+  }
+  if (comparisonMode.school2?.id === schoolId) {
+    comparisonMode.school2 = null;
+    updateComparisonSlot(2, null);
+    element.classList.remove('comparison-selected-2');
+    return;
+  }
+  
+  const schoolName = extractSchoolName(element);
+  
+  // Add to first empty slot
+  if (!comparisonMode.school1) {
+    comparisonMode.school1 = { id: schoolId, name: schoolName, element };
+    updateComparisonSlot(1, schoolName);
+    element.classList.add('comparison-selected-1');
+    showToast(`School 1 selected: ${schoolName}`, 'success');
+  } else if (!comparisonMode.school2) {
+    comparisonMode.school2 = { id: schoolId, name: schoolName, element };
+    updateComparisonSlot(2, schoolName);
+    element.classList.add('comparison-selected-2');
+    showToast(`School 2 selected: ${schoolName}`, 'success');
+    
+    // Both schools selected, execute comparison
+    setTimeout(() => executeComparison(), 500);
+  }
+}
+
+function extractSchoolName(element) {
+  // Try different methods to extract school name
+  const strong = element.querySelector('strong');
+  if (strong) return strong.textContent.trim();
+  
+  const titleDiv = element.querySelector('.result-item-title');
+  if (titleDiv) return titleDiv.textContent.trim();
+  
+  const firstCell = element.querySelector('td:first-child');
+  if (firstCell) return firstCell.textContent.trim();
+  
+  return 'Unknown School';
+}
+
+function updateComparisonSlot(slotNumber, schoolName) {
+  const slot = document.getElementById(`comparisonSlot${slotNumber}`);
+  if (!slot) return;
+  
+  const slotText = slot.querySelector('.slot-text');
+  if (schoolName) {
+    slot.classList.add('filled');
+    slotText.textContent = schoolName;
+  } else {
+    slot.classList.remove('filled');
+    slotText.textContent = 'Click a school';
+  }
+}
+
+window.cancelComparison = function() {
+  comparisonMode.active = false;
+  
+  // Remove visual indicators
+  document.querySelectorAll('.comparison-selected-1, .comparison-selected-2').forEach(el => {
+    el.classList.remove('comparison-selected-1', 'comparison-selected-2');
+  });
+  
+  document.querySelectorAll('.comparison-selectable').forEach(el => {
+    el.classList.remove('comparison-selectable');
+    if (el.tagName === 'TR') {
+      el.style.cursor = '';
+    }
+  });
+  
+  // Remove notification
+  const notification = document.getElementById('comparisonNotification');
+  if (notification) notification.remove();
+  
+  comparisonMode.school1 = null;
+  comparisonMode.school2 = null;
+  
+  showToast('Comparison cancelled', 'info');
+};
+
+async function executeComparison() {
+  if (!comparisonMode.school1 || !comparisonMode.school2) {
+    showToast('Please select two schools', 'error');
+    return;
+  }
+  
+  showToast('Loading comparison...', 'info');
+  
+  try {
+    const response = await fetch('/api/schools/compare', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ 
+        school1_id: comparisonMode.school1.id, 
+        school2_id: comparisonMode.school2.id 
+      })
+    });
+    
+    const data = await response.json();
+    
+    if (!data.success) {
+      showToast(data.message || 'Comparison failed', 'error');
+      return;
+    }
+    
+    displaySideBySideComparison(data.school1, data.school2);
+    cancelComparison(); // Exit comparison mode
+    showToast('Comparison loaded', 'success');
+    
+  } catch (error) {
+    console.error('Comparison error:', error);
+    showToast('Failed to compare schools', 'error');
+  }
+}
+
+function displaySideBySideComparison(school1, school2) {
+  const html = `
+    <div class="modal active" id="comparisonModal">
+      <div class="modal-overlay" onclick="closeComparisonModal()"></div>
+      <div class="comparison-container">
+        ${renderSchoolComparisonPanel(school1, school2, 1)}
+        ${renderSchoolComparisonPanel(school2, school1, 2)}
+      </div>
+      <button class="comparison-close-btn" onclick="closeComparisonModal()">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+        </svg>
+      </button>
+    </div>
+  `;
+  
+  document.body.insertAdjacentHTML('beforeend', html);
+  document.body.style.overflow = 'hidden';
+}
+
+function renderSchoolComparisonPanel(school, otherSchool, panelNum) {
+  // Find unique items
+  const uniqueSubjects = school.subjects.filter(s => !otherSchool.subjects.includes(s));
+  const uniqueCCAs = school.ccas.filter(c => !otherSchool.ccas.some(oc => oc.cca_generic_name === c.cca_generic_name));
+  const uniqueProgs = school.programmes.filter(p => !otherSchool.programmes.includes(p));
+  
+  return `
+    <div class="comparison-panel panel-${panelNum}">
+      <div class="comparison-panel-header">
+        <h3>${school.school_name}</h3>
+        <span class="badge zone-${school.zone_code?.toLowerCase()}">${school.zone_code}</span>
+      </div>
+      
+      <div class="comparison-panel-content">
+        ${renderBasicInfoSection(school)}
+        ${renderContactSection(school)}
+        ${renderSpecialProgrammesSection(school)}
+        ${renderSubjectsSection(school.subjects, uniqueSubjects)}
+        ${renderCCAsSection(school.ccas, uniqueCCAs)}
+        ${renderProgrammesSection(school.programmes, uniqueProgs)}
+        ${renderDistinctivesSection(school.distinctives)}
+        ${renderTransportSection(school)}
+      </div>
+    </div>
+  `;
+}
+
+function renderBasicInfoSection(s) {
+  return `
+    <div class="info-section">
+      <h4>Basic Information</h4>
+      <div class="info-grid">
+        ${s.mainlevel_code ? `<div class="info-item"><label>Level:</label><span>${s.mainlevel_code}</span></div>` : ''}
+        ${s.address ? `<div class="info-item"><label>Address:</label><span>${s.address}</span></div>` : ''}
+        ${s.postal_code ? `<div class="info-item"><label>Postal:</label><span>${s.postal_code}</span></div>` : ''}
+        ${s.principal_name ? `<div class="info-item"><label>Principal:</label><span>${s.principal_name}</span></div>` : ''}
+        ${s.type_code ? `<div class="info-item"><label>Type:</label><span>${s.type_code}</span></div>` : ''}
+        ${s.nature_code ? `<div class="info-item"><label>Nature:</label><span>${s.nature_code}</span></div>` : ''}
+      </div>
+    </div>
+  `;
+}
+
+function renderContactSection(s) {
+  if (!s.email_address && !s.telephone_no) return '';
+  return `
+    <div class="info-section">
+      <h4>Contact</h4>
+      <div class="info-grid">
+        ${s.email_address ? `<div class="info-item"><label>Email:</label><span>${s.email_address}</span></div>` : ''}
+        ${s.telephone_no ? `<div class="info-item"><label>Phone:</label><span>${s.telephone_no}</span></div>` : ''}
+      </div>
+    </div>
+  `;
+}
+
+function renderSpecialProgrammesSection(s) {
+  const programmes = [];
+  if (s.autonomous_ind === 'Yes') programmes.push('Autonomous');
+  if (s.gifted_ind === 'Yes') programmes.push('Gifted');
+  if (s.ip_ind === 'Yes') programmes.push('IP');
+  if (s.sap_ind === 'Yes') programmes.push('SAP');
+  
+  if (programmes.length === 0) return '';
+  
+  return `
+    <div class="info-section">
+      <h4>Special Programmes</h4>
+      <div class="badge-list">
+        ${programmes.map(p => `<span class="badge">${p}</span>`).join('')}
+      </div>
+    </div>
+  `;
+}
+
+function renderSubjectsSection(subjects, uniqueSubjects) {
+  if (!subjects || subjects.length === 0) return '';
+  
+  return `
+    <div class="info-section">
+      <h4>Subjects (${subjects.length})</h4>
+      <div class="badge-list">
+        ${subjects.map(s => {
+          const isUnique = uniqueSubjects.includes(s);
+          return `<span class="badge ${isUnique ? 'badge-unique' : ''}">${s}</span>`;
+        }).join('')}
+      </div>
+    </div>
+  `;
+}
+
+function renderCCAsSection(ccas, uniqueCCAs) {
+  if (!ccas || ccas.length === 0) return '';
+  
+  return `
+    <div class="info-section">
+      <h4>CCAs (${ccas.length})</h4>
+      <div class="badge-list">
+        ${ccas.map(c => {
+          const isUnique = uniqueCCAs.some(uc => uc.cca_generic_name === c.cca_generic_name);
+          return `<span class="badge ${isUnique ? 'badge-unique' : ''}">${c.cca_generic_name}</span>`;
+        }).join('')}
+      </div>
+    </div>
+  `;
+}
+
+function renderProgrammesSection(programmes, uniqueProgs) {
+  if (!programmes || programmes.length === 0) return '';
+  
+  return `
+    <div class="info-section">
+      <h4>MOE Programmes (${programmes.length})</h4>
+      <div class="badge-list">
+        ${programmes.map(p => {
+          const isUnique = uniqueProgs.includes(p);
+          return `<span class="badge ${isUnique ? 'badge-unique' : ''}">${p}</span>`;
+        }).join('')}
+      </div>
+    </div>
+  `;
+}
+
+function renderDistinctivesSection(distinctives) {
+  if (!distinctives || distinctives.length === 0) return '';
+  
+  return `
+    <div class="info-section">
+      <h4>Distinctive Programmes</h4>
+      ${distinctives.map(d => `
+        <div class="distinctive-item">
+          ${d.alp_title ? `<div><strong>ALP:</strong> ${d.alp_title}</div>` : ''}
+          ${d.llp_title ? `<div><strong>LLP:</strong> ${d.llp_title}</div>` : ''}
+        </div>
+      `).join('')}
+    </div>
+  `;
+}
+
+function renderTransportSection(s) {
+  if (!s.mrt_desc && !s.bus_desc) return '';
+  
+  return `
+    <div class="info-section">
+      <h4>Transportation</h4>
+      <div class="info-grid">
+        ${s.mrt_desc ? `<div class="info-item"><label>MRT:</label><span>${s.mrt_desc}</span></div>` : ''}
+        ${s.bus_desc ? `<div class="info-item"><label>Bus:</label><span>${s.bus_desc}</span></div>` : ''}
+      </div>
+    </div>
+  `;
+}
+
+window.closeComparisonModal = function() {
+  const modal = document.getElementById('comparisonModal');
+  if (modal) {
+    modal.remove();
+    document.body.style.overflow = 'auto';
+  }
+};
+
+// ========== DISTANCE SEARCH BY POSTAL CODE ==========
+window.showDistanceSearch = function() {
+  const html = `
+    <div class="modal active" id="distanceSearchModal">
+      <div class="modal-overlay" onclick="closeDistanceSearch()"></div>
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3>Search Schools by Distance</h3>
+          <button class="modal-close" onclick="closeDistanceSearch()">×</button>
+        </div>
+        <div style="padding: 24px;">
+          <div class="form-grid">
+            <div class="form-group full-width">
+              <label>Postal Code</label>
+              <input type="text" id="distancePostalCode" placeholder="e.g., 569842" pattern="[0-9]{6}" maxlength="6" required>
+              <span class="form-hint">Enter a 6-digit Singapore postal code</span>
+            </div>
+            <div class="form-group full-width">
+              <label>Radius (km)</label>
+              <input type="number" id="distanceRadius" step="0.5" min="0.5" max="20" value="3" required>
+              <span class="form-hint">Search within this distance (max 20km)</span>
+            </div>
+          </div>
+          
+          <div class="tip-item" style="margin-top: 16px;">
+            <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
+              <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"/>
+            </svg>
+            <span>Enter any Singapore postal code to find nearby schools</span>
+          </div>
+          
+          <div class="modal-footer">
+            <button class="btn-secondary" onclick="closeDistanceSearch()">Cancel</button>
+            <button class="btn-primary" onclick="executeDistanceSearch()">
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+                <path d="M9 2a7 7 0 015.618 11.176l4.1 4.1a1 1 0 01-1.414 1.414l-4.1-4.1A7 7 0 119 2zm0 2a5 5 0 100 10 5 5 0 000-10z"/>
+              </svg>
+              Search
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+  
+  document.body.insertAdjacentHTML('beforeend', html);
+  document.body.style.overflow = 'hidden';
+};
+
+window.executeDistanceSearch = async function() {
+  const postal_code = document.getElementById('distancePostalCode').value.trim();
+  const radius_km = parseFloat(document.getElementById('distanceRadius').value);
+  
+  if (!postal_code || postal_code.length !== 6) {
+    showToast('Please enter a valid 6-digit postal code', 'error');
+    return;
+  }
+  
+  if (!radius_km || radius_km <= 0) {
+    showToast('Please enter a valid radius', 'error');
+    return;
+  }
+  
+  closeDistanceSearch();
+  showToast('Searching nearby schools...', 'info');
+  
+  try {
+    const response = await fetch('/api/schools/search-by-postal-code', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ postal_code, radius_km })
+    });
+    
+    const data = await response.json();
+    
+    if (!data.success) {
+      showToast(data.message || 'Search failed', 'error');
+      return;
+    }
+    
+    displayDistanceResults(data.results, data.search_params);
+    
+    if (data.results.length === 0) {
+      showToast('No schools found within the specified radius', 'info');
+    } else {
+      showToast(`Found ${data.results.length} school(s) nearby`, 'success');
+    }
+    
+  } catch (error) {
+    console.error('Distance search error:', error);
+    showToast('Failed to search schools: ' + error.message, 'error');
+  }
+};
+
+function displayDistanceResults(results, params) {
+  const resultsTable = document.getElementById('resultsTable');
+  const resultsMeta = document.getElementById('resultsMeta');
+  
+  // Switch to search view if not already there
+  switchView('search');
+  
+  resultsMeta.textContent = `Found ${results.length} school(s) within ${params.radius_km}km of postal code ${params.postal_code}`;
+  
+  if (results.length === 0) {
+    resultsTable.innerHTML = `
+      <div class="empty-state">
+        <svg width="64" height="64" viewBox="0 0 64 64" fill="none">
+          <circle cx="32" cy="32" r="30" stroke="#E5E7EB" stroke-width="4"/>
+          <path d="M32 20v24M20 32h24" stroke="#E5E7EB" stroke-width="4" stroke-linecap="round"/>
+        </svg>
+        <h3>No schools found</h3>
+        <p>Try increasing the search radius or checking the postal code</p>
+      </div>
+    `;
+    return;
+  }
+  
+  let html = '<table class="data-table"><thead><tr>';
+  html += '<th>Distance (km)</th>';
+  html += '<th>School Name</th>';
+  html += '<th>Zone</th>';
+  html += '<th>Level</th>';
+  html += '<th>Address</th>';
+  html += '<th>Postal Code</th>';
+  html += '<th>Actions</th>';
+  html += '</tr></thead><tbody>';
+  
+  results.forEach(school => {
+    html += `<tr>`;
+    html += `<td><span class="badge" style="background: #DBEAFE; color: #1E40AF; font-weight: 700;">${school.distance_km} km</span></td>`;
+    html += `<td><strong>${school.school_name}</strong></td>`;
+    html += `<td><span class="badge zone-${school.zone_code.toLowerCase()}">${school.zone_code}</span></td>`;
+    html += `<td>${school.mainlevel_code}</td>`;
+    html += `<td>${school.address}</td>`;
+    html += `<td>${school.postal_code}</td>`;
+    html += `<td><button class="btn-primary" style="padding: 6px 12px; font-size: 13px;" onclick='viewItemDetails("schools", ${school.school_id})'>View</button></td>`;
+    html += `</tr>`;
+  });
+  
+  html += '</tbody></table>';
+  resultsTable.innerHTML = html;
+}
+
+window.closeDistanceSearch = function() {
+  const modal = document.getElementById('distanceSearchModal');
+  if (modal) {
+    modal.remove();
+    document.body.style.overflow = 'auto';
+  }
+};
 
 /**
  * Render basic information section
