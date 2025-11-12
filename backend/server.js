@@ -226,16 +226,16 @@ app.get('/api/schools/:id/ccas', async (req, res) => {
         const { id } = req.params;
         const result = await pool.query(`
             SELECT 
-                c.cca_generic_name,
                 c.cca_grouping_desc,
+                c.cca_generic_name,
                 sc.cca_customized_name,
                 sc.school_section
             FROM school_ccas sc
             JOIN ccas c ON sc.cca_id = c.cca_id
             WHERE sc.school_id = $1
-            AND c.cca_generic_name IS NOT NULL
-            AND TRIM(c.cca_generic_name) != ''
-            ORDER BY c.cca_grouping_desc, c.cca_generic_name
+            AND c.cca_grouping_desc IS NOT NULL
+            AND TRIM(c.cca_grouping_desc) != ''
+            ORDER BY c.cca_generic_name, c.cca_grouping_desc
         `, [id]);
         
         res.json(result.rows);
@@ -407,19 +407,20 @@ app.get('/api/schools/ccas', async (req, res) => {
         s.school_name,
         s.zone_code,
         s.mainlevel_code,
-        c.cca_generic_name
+        c.cca_grouping_desc as cca_name,
+        c.cca_generic_name as cca_category
        FROM Schools s
        JOIN School_CCAs sca ON s.school_id = sca.school_id
        JOIN CCAs c ON c.cca_id = sca.cca_id
        WHERE (
-         LOWER(c.cca_generic_name) LIKE LOWER($1) OR
          LOWER(c.cca_grouping_desc) LIKE LOWER($1) OR
+         LOWER(c.cca_generic_name) LIKE LOWER($1) OR
          LOWER(sca.cca_customized_name) LIKE LOWER($1)
        )
-       AND c.cca_generic_name IS NOT NULL
-       AND TRIM(c.cca_generic_name) != ''
-       AND UPPER(c.cca_generic_name) NOT IN ('NA', 'N/A', 'NIL', 'NONE', '-')
-       ORDER BY s.school_name, c.cca_generic_name
+       AND c.cca_grouping_desc IS NOT NULL
+       AND TRIM(c.cca_grouping_desc) != ''
+       AND UPPER(c.cca_grouping_desc) NOT IN ('NA', 'N/A', 'NIL', 'NONE', '-')
+       ORDER BY s.school_name, c.cca_grouping_desc
        LIMIT 100`,
       [`%${name}%`]
     );
@@ -833,22 +834,22 @@ app.get('/api/search/universal', async (req, res) => {
 
     // --- Subjects ---
     const subjectsQuery = `
-    SELECT 
-      'subject' AS type,
-      s.school_id,
-      s.school_name AS name,
-      subj.subject_desc AS description,
-      s.zone_code,
-      s.mainlevel_code
-    FROM subjects subj
-      JOIN school_subjects ss ON subj.subject_id = ss.subject_id
-      JOIN schools s ON ss.school_id = s.school_id
-    WHERE subj.subject_desc ILIKE $1
-      AND subj.subject_desc IS NOT NULL
-      AND TRIM(subj.subject_desc) != ''
-      AND UPPER(subj.subject_desc) NOT IN ('NA', 'N/A', 'NIL', 'NONE', '-')
-    ORDER BY s.school_name;
-  `;
+      SELECT 
+        'subject' AS type,
+        s.school_id,
+        s.school_name AS name,
+        subj.subject_desc AS description,
+        s.zone_code,
+        s.mainlevel_code
+      FROM subjects subj
+        JOIN school_subjects ss ON subj.subject_id = ss.subject_id
+        JOIN schools s ON ss.school_id = s.school_id
+      WHERE subj.subject_desc ILIKE $1
+        AND subj.subject_desc IS NOT NULL
+        AND TRIM(subj.subject_desc) != ''
+        AND UPPER(subj.subject_desc) NOT IN ('NA', 'N/A', 'NIL', 'NONE', '-')
+      ORDER BY s.school_name;
+    `;
 
     // --- CCAs ---
     const ccasQuery = `
@@ -856,15 +857,16 @@ app.get('/api/search/universal', async (req, res) => {
         'cca' AS type,
         sch.school_id,
         sch.school_name AS name,
-        c.cca_generic_name AS description,
+        c.cca_grouping_desc AS description,
+        c.cca_generic_name AS cca_category,
         sch.zone_code,
         sch.mainlevel_code
       FROM CCAs c
       JOIN School_CCAs sc ON c.cca_id = sc.cca_id
       JOIN Schools sch ON sc.school_id = sch.school_id
       WHERE 
-        c.cca_generic_name ILIKE $1
-        OR c.cca_grouping_desc ILIKE $1
+        c.cca_grouping_desc ILIKE $1
+        OR c.cca_generic_name ILIKE $1
         OR sc.cca_customized_name ILIKE $1
       ORDER BY sch.school_name
     `;
@@ -1156,14 +1158,14 @@ app.post('/api/schools/compare', async (req, res) => {
 
     const ccasQuery = `
       SELECT 
-        c.cca_generic_name,
         c.cca_grouping_desc,
+        c.cca_generic_name,
         sc.cca_customized_name
       FROM school_ccas sc
       JOIN ccas c ON sc.cca_id = c.cca_id
       WHERE sc.school_id = $1
-      AND c.cca_generic_name IS NOT NULL
-      ORDER BY c.cca_grouping_desc, c.cca_generic_name
+      AND c.cca_grouping_desc IS NOT NULL
+      ORDER BY c.cca_generic_name, c.cca_grouping_desc
     `;
 
     const programmesQuery = `

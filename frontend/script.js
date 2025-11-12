@@ -155,17 +155,33 @@ document.addEventListener('DOMContentLoaded', () => {
   loadSchoolStats();
 });
 
-
 // ========== Search Functionality ==========
 window.runQuery = async function () {
   const school = document.getElementById("searchBox").value.trim();
   const queryType = document.getElementById("queryType").value;
+  const summary = document.getElementById('universalSearchSummary');
+
+  // Hide summary for non-universal searches
+  if (summary) {
+    summary.style.display = 'none';
+  }
 
   if (!school) {
-    showToast('Please enter a school name', 'error');
+    showToast('Please enter a search term', 'error');
     return;
   }
 
+  // Show clear button
+  const clearBtn = document.getElementById('clearSearchBtn');
+  if (clearBtn) clearBtn.style.display = 'flex';
+
+  // If universal search is selected, use different endpoint
+  if (queryType === 'universal') {
+    performUniversalSearch(school);
+    return;
+  }
+
+  // Original search logic for specific queries
   let url = "";
   if (queryType === "all") url = `/api/schools?name=${encodeURIComponent(school)}`;
   if (queryType === "subjects") url = `/api/schools/subjects?name=${encodeURIComponent(school)}`;
@@ -185,15 +201,30 @@ window.runQuery = async function () {
     if (data.error) {
       showToast(data.error, 'error');
       renderEmpty('Error loading data');
+      updateResultsMeta(0, school);
       return;
     }
 
+    // Render results
     renderTable(data, queryType);
     updateResultsMeta(data.length, school);
+
+    // **RE-ATTACH COMPARISON LISTENERS IF COMPARISON MODE IS ACTIVE**
+    if (comparisonMode.active) {
+      addComparisonClickListeners();
+    }
+
+    // Show appropriate toast
+    if (data.length === 0) {
+      showToast('No results found', 'info');
+    } else {
+      showToast(`Found ${data.length} result(s)`, 'success');
+    }
   } catch (err) {
     hideLoading();
     showToast('Failed to fetch data: ' + err.message, 'error');
     renderEmpty('Connection error');
+    updateResultsMeta(0, school);
   }
 };
 
@@ -342,8 +373,11 @@ function renderTable(data, queryType) {
         html += `<td><strong>${row.school_name || '-'}</strong></td>`;
         html += `<td><span class="badge">${row.zone_code || '-'}</span></td>`;
         html += `<td>${row.mainlevel_code || '-'}</td>`;
-        html += `<td>${row.cca_generic_name || '-'}</td>`;
-      } else if (queryType === 'programmes') {
+        html += `<td>
+          <strong>${row.cca_category || '-'}</strong>
+          ${row.cca_name ? `<span style="color: var(--gray-500); font-size: 13px; margin-left: 8px;">(${row.cca_name})</span>` : ''}
+        </td>`;
+      }else if (queryType === 'programmes') {
         html += `<td><strong>${row.school_name || '-'}</strong></td>`;
         html += `<td><span class="badge">${row.zone_code || '-'}</span></td>`;
         html += `<td>${row.mainlevel_code || '-'}</td>`;
@@ -536,6 +570,11 @@ function renderUniversalSearchResults(results, query) {
 
   html += '</div>';
   container.innerHTML = html;
+
+  // **RE-ATTACH COMPARISON LISTENERS IF COMPARISON MODE IS ACTIVE**
+  if (comparisonMode.active) {
+    addComparisonClickListeners();
+  }
 }
 
 // ========== Render Category ==========
@@ -601,18 +640,37 @@ function renderResultItem(type, item, query) {
   
   // Title with highlighted search term
   const name = item.name || item.school_name || item.subject_desc || item.cca_generic_name || item.moe_programme_desc || 'Unnamed';
+
+  // Also update the description for CCAs in universal search
+  if (item.description && type === 'ccas') {
+    // For CCAs, show the actual CCA name, not the grouping
+    const ccaName = item.cca_generic_name || item.description;
+    const highlightedName = highlightSearchTerm(ccaName, query);
+    html += `<div class="result-item-title">${highlightedName}</div>`;
+  } else {
+    const highlightedName = highlightSearchTerm(name, query);
+    html += `<div class="result-item-title">${highlightedName}</div>`;
+  }
+    
   const highlightedName = highlightSearchTerm(name, query);
   html += `<div class="result-item-title">${highlightedName}</div>`;
   
   html += '</div>';
   
-  // Description
-  if (item.description) {
-    const truncatedDesc = item.description.length > 150 
-      ? item.description.substring(0, 150) + '...'
-      : item.description;
-    html += `<div class="result-item-description">${truncatedDesc}</div>`;
-  }
+    // Description
+    if (item.description) {
+      let descText = item.description;
+      
+      // For CCAs, show both category and name
+      if (type === 'ccas' && item.cca_category) {
+        descText = `${item.cca_category} - ${item.description}`;
+      }
+      
+      const truncatedDesc = descText.length > 150 
+        ? descText.substring(0, 150) + '...'
+        : descText;
+      html += `<div class="result-item-description">${truncatedDesc}</div>`;
+    }
   
   // Meta tags
   html += '<div class="result-item-meta">';
@@ -1498,7 +1556,7 @@ function displaySideBySideComparison(school1, school2) {
 function renderSchoolComparisonPanel(school, otherSchool, panelNum) {
   // Find unique items
   const uniqueSubjects = school.subjects.filter(s => !otherSchool.subjects.includes(s));
-  const uniqueCCAs = school.ccas.filter(c => !otherSchool.ccas.some(oc => oc.cca_generic_name === c.cca_generic_name));
+  const uniqueCCAs = school.ccas.filter(c => !otherSchool.ccas.some(oc => oc.cca_grouping_desc === c.cca_grouping_desc));
   const uniqueProgs = school.programmes.filter(p => !otherSchool.programmes.includes(p));
   
   return `
@@ -1594,8 +1652,8 @@ function renderCCAsSection(ccas, uniqueCCAs) {
       <h4>CCAs (${ccas.length})</h4>
       <div class="badge-list">
         ${ccas.map(c => {
-          const isUnique = uniqueCCAs.some(uc => uc.cca_generic_name === c.cca_generic_name);
-          return `<span class="badge ${isUnique ? 'badge-unique' : ''}">${c.cca_generic_name}</span>`;
+          const isUnique = uniqueCCAs.some(uc => uc.cca_grouping_desc === c.cca_grouping_desc);
+          return `<span class="badge ${isUnique ? 'badge-unique' : ''}">${c.cca_grouping_desc}</span>`;
         }).join('')}
       </div>
     </div>
@@ -1773,29 +1831,27 @@ function displayDistanceResults(results, params) {
     return;
   }
   
-  let html = '<table class="data-table"><thead><tr>';
+  let html = '<div style="overflow-x: auto;"><table class="data-table"><thead><tr>';
   html += '<th>Distance (km)</th>';
   html += '<th>School Name</th>';
   html += '<th>Zone</th>';
   html += '<th>Level</th>';
   html += '<th>Address</th>';
   html += '<th>Postal Code</th>';
-  html += '<th>Actions</th>';
   html += '</tr></thead><tbody>';
   
   results.forEach(school => {
-    html += `<tr>`;
+    html += `<tr data-clickable="true" onclick='viewItemDetails("schools", ${school.school_id})' style="cursor: pointer;">`;
     html += `<td><span class="badge" style="background: #DBEAFE; color: #1E40AF; font-weight: 700;">${school.distance_km} km</span></td>`;
     html += `<td><strong>${school.school_name}</strong></td>`;
     html += `<td><span class="badge zone-${school.zone_code.toLowerCase()}">${school.zone_code}</span></td>`;
     html += `<td>${school.mainlevel_code}</td>`;
     html += `<td>${school.address}</td>`;
     html += `<td>${school.postal_code}</td>`;
-    html += `<td><button class="btn-primary" style="padding: 6px 12px; font-size: 13px;" onclick='viewItemDetails("schools", ${school.school_id})'>View</button></td>`;
     html += `</tr>`;
   });
   
-  html += '</tbody></table>';
+  html += '</tbody></table></div>';
   resultsTable.innerHTML = html;
 }
 
@@ -1971,10 +2027,10 @@ function renderSubjectsList(subjects) {
 function renderCCAsList(ccas) {
     if (!ccas || ccas.length === 0) return '';
     
-    // Group CCAs by cca_grouping_desc
+    // Group CCAs by cca_generic_name (the category)
     const groupedCCAs = {};
     ccas.forEach(cca => {
-        const group = cca.cca_grouping_desc || 'Other';
+        const group = cca.cca_generic_name || 'Other';
         if (!groupedCCAs[group]) groupedCCAs[group] = [];
         groupedCCAs[group].push(cca);
     });
@@ -1989,8 +2045,8 @@ function renderCCAsList(ccas) {
                 <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 0.75rem;">
                     ${groupedCCAs[group].map(cca => `
                         <div style="padding: 0.875rem; background: #F0FDF4; border-left: 3px solid #10B981; border-radius: 0.375rem;">
-                            <strong style="color: #065F46; font-size: 0.9rem;">${cca.cca_generic_name}</strong>
-                            ${cca.cca_customized_name && cca.cca_customized_name !== cca.cca_generic_name ? 
+                            <strong style="color: #065F46; font-size: 0.9rem;">${cca.cca_grouping_desc}</strong>
+                            ${cca.cca_customized_name && cca.cca_customized_name !== cca.cca_grouping_desc ? 
                                 `<div style="color: #6B7280; font-size: 0.8rem; margin-top: 0.25rem;">${cca.cca_customized_name}</div>` : ''}
                             ${cca.school_section ? 
                                 `<span class="badge" style="font-size: 0.7rem; margin-top: 0.5rem; background: #D1FAE5; color: #065F46; padding: 0.125rem 0.5rem;">${cca.school_section}</span>` : ''}
