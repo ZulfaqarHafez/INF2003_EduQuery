@@ -12,10 +12,10 @@ const path = require('path');
 app.use(express.json());
 app.use(express.static(path.join(__dirname, '../frontend')));
 
-// Redirect root to login
+// Serve index.html as default without any redirects
 app.use((req, res, next) => {
   if (req.url === '/') {
-    return res.redirect('/login');
+    return res.sendFile(path.join(__dirname, '../frontend/index.html'));
   }
   next();
 });
@@ -61,7 +61,7 @@ function verifyToken(token) {
   }
 }
 
-// Authentication middleware for API routes
+// Authentication middleware for ADMIN API routes only
 const requireAuth = (req, res, next) => {
   const token = req.headers.authorization?.replace('Bearer ', '') || 
                 req.query.token;
@@ -85,24 +85,7 @@ const requireAuth = (req, res, next) => {
   next();
 };
 
-// Middleware to protect HTML pages
-const protectPage = (req, res, next) => {
-  const token = req.query.token;
-  
-  if (!token) {
-    return res.redirect('/login?error=Authentication required');
-  }
-
-  const decoded = verifyToken(token);
-  if (!decoded) {
-    return res.redirect('/login?error=Invalid or expired token');
-  }
-
-  req.user = decoded;
-  next();
-};
-
-// Middleware to check if user is admin
+// Middleware to check if user is admin (requires requireAuth first)
 const requireAdmin = (req, res, next) => {
   if (!req.user || !req.user.is_admin) {
     return res.status(403).json({ 
@@ -112,7 +95,322 @@ const requireAdmin = (req, res, next) => {
   }
   next();
 };
+// ========== SCHOOL COMPARISON ENDPOINT ==========
+// Add this to server.js after the /api/search/details/:type/:id endpoint
+app.post('/api/schools/compare', async (req, res) => {
+  try {
+    const { school1_id, school2_id } = req.body;
 
+    if (!school1_id || !school2_id) {
+      return res.status(400).json({
+        success: false,
+        message: 'Both school IDs are required'
+      });
+    }
+
+    // Fetch comprehensive data for both schools
+    const schoolQuery = `
+      SELECT 
+        s.*,
+        r.email_address,
+        r.telephone_no,
+        r.first_vp_name,
+        r.second_vp_name,
+        r.type_code,
+        r.nature_code,
+        r.session_code,
+        r.autonomous_ind,
+        r.gifted_ind,
+        r.ip_ind,
+        r.sap_ind,
+        r.bus_desc,
+        r.mrt_desc,
+        COUNT(DISTINCT ss.subject_id) as subject_count,
+        COUNT(DISTINCT sc.cca_id) as cca_count,
+        COUNT(DISTINCT sp.programme_id) as programme_count,
+        COUNT(DISTINCT sd.distinctive_id) as distinctive_count
+      FROM Schools s
+      LEFT JOIN raw_general_info r ON LOWER(s.school_name) = LOWER(r.school_name)
+      LEFT JOIN School_Subjects ss ON s.school_id = ss.school_id
+      LEFT JOIN School_CCAs sc ON s.school_id = sc.school_id
+      LEFT JOIN School_Programmes sp ON s.school_id = sp.school_id
+      LEFT JOIN School_Distinctives sd ON s.school_id = sd.school_id
+      WHERE s.school_id = $1
+      GROUP BY s.school_id, r.email_address, r.telephone_no, r.first_vp_name, 
+               r.second_vp_name, r.type_code, r.nature_code, r.session_code,
+               r.autonomous_ind, r.gifted_ind, r.ip_ind, r.sap_ind, 
+               r.bus_desc, r.mrt_desc
+    `;
+
+    const subjectsQuery = `
+      SELECT DISTINCT subj.subject_desc
+      FROM school_subjects ss
+      JOIN subjects subj ON ss.subject_id = subj.subject_id
+      WHERE ss.school_id = $1
+      AND subj.subject_desc IS NOT NULL
+      AND TRIM(subj.subject_desc) != ''
+      ORDER BY subj.subject_desc
+    `;
+
+    const ccasQuery = `
+      SELECT 
+        c.cca_generic_name,
+        c.cca_grouping_desc,
+        sc.cca_customized_name
+      FROM school_ccas sc
+      JOIN ccas c ON sc.cca_id = c.cca_id
+      WHERE sc.school_id = $1
+      AND c.cca_generic_name IS NOT NULL
+      ORDER BY c.cca_grouping_desc, c.cca_generic_name
+    `;
+
+    const programmesQuery = `
+      SELECT DISTINCT p.moe_programme_desc
+      FROM school_programmes sp
+      JOIN programmes p ON sp.programme_id = p.programme_id
+      WHERE sp.school_id = $1
+      AND p.moe_programme_desc IS NOT NULL
+      ORDER BY p.moe_programme_desc
+    `;
+
+    const distinctivesQuery = `
+      SELECT DISTINCT
+        d.alp_domain,
+        d.alp_title,
+        d.llp_domain1,
+        d.llp_title
+      FROM school_distinctives sd
+      JOIN distinctive_programmes d ON sd.distinctive_id = d.distinctive_id
+      WHERE sd.school_id = $1
+    `;
+
+    // Fetch all data in parallel
+    const [
+      school1Result, 
+      school2Result,
+      subjects1,
+      subjects2,
+      ccas1,
+      ccas2,
+      programmes1,
+      programmes2,
+      distinctives1,
+      distinctives2
+    ] = await Promise.all([
+      pool.query(schoolQuery, [school1_id]),
+      pool.query(schoolQuery, [school2_id]),
+      pool.query(subjectsQuery, [school1_id]),
+      pool.query(subjectsQuery, [school2_id]),
+      pool.query(ccasQuery, [school1_id]),
+      pool.query(ccasQuery, [school2_id]),
+      pool.query(programmesQuery, [school1_id]),
+      pool.query(programmesQuery, [school2_id]),
+      pool.query(distinctivesQuery, [school1_id]),
+      pool.query(distinctivesQuery, [school2_id])
+    ]);
+
+    if (school1Result.rows.length === 0 || school2Result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'One or both schools not found'
+      });
+    }
+
+    // Log activity
+    logActivity('school_comparison', {
+      school1_id,
+      school2_id,
+      school1_name: school1Result.rows[0].school_name,
+      school2_name: school2Result.rows[0].school_name
+    });
+
+    res.json({
+      success: true,
+      school1: {
+        ...school1Result.rows[0],
+        subjects: subjects1.rows.map(r => r.subject_desc),
+        ccas: ccas1.rows,
+        programmes: programmes1.rows.map(r => r.moe_programme_desc),
+        distinctives: distinctives1.rows
+      },
+      school2: {
+        ...school2Result.rows[0],
+        subjects: subjects2.rows.map(r => r.subject_desc),
+        ccas: ccas2.rows,
+        programmes: programmes2.rows.map(r => r.moe_programme_desc),
+        distinctives: distinctives2.rows
+      }
+    });
+
+  } catch (err) {
+    console.error('School comparison error:', err);
+    res.status(500).json({
+      success: false,
+      error: err.message
+    });
+  }
+});
+
+// ========== POSTAL CODE TO COORDINATES LOOKUP ==========
+// Add this helper endpoint for postal code conversion
+app.get('/api/postal-code/:postalCode', async (req, res) => {
+  try {
+    const { postalCode } = req.params;
+    
+    // Query to find coordinates from raw_general_info using postal code
+    const query = `
+      SELECT DISTINCT
+        postal_code,
+        latitude::decimal as latitude,
+        longitude::decimal as longitude,
+        school_name
+      FROM raw_general_info
+      WHERE postal_code = $1
+        AND latitude IS NOT NULL 
+        AND longitude IS NOT NULL
+        AND latitude != 'NA'
+        AND longitude != 'NA'
+      LIMIT 1
+    `;
+    
+    const result = await pool.query(query, [postalCode]);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Postal code not found or no coordinates available'
+      });
+    }
+    
+    res.json({
+      success: true,
+      postal_code: postalCode,
+      latitude: parseFloat(result.rows[0].latitude),
+      longitude: parseFloat(result.rows[0].longitude)
+    });
+    
+  } catch (err) {
+    console.error('Postal code lookup error:', err);
+    res.status(500).json({
+      success: false,
+      error: err.message
+    });
+  }
+});
+
+// ========== SEARCH BY POSTAL CODE DISTANCE ==========
+app.post('/api/schools/search-by-postal-code', async (req, res) => {
+  try {
+    const { postal_code, radius_km } = req.body;
+
+    if (!postal_code || !radius_km) {
+      return res.status(400).json({
+        success: false,
+        message: 'Postal code and radius are required'
+      });
+    }
+
+    // First, get coordinates for the postal code
+    const coordsQuery = `
+      SELECT DISTINCT
+        latitude::decimal as lat,
+        longitude::decimal as lon
+      FROM raw_general_info
+      WHERE postal_code = $1
+        AND latitude IS NOT NULL 
+        AND longitude IS NOT NULL
+        AND latitude != 'NA'
+        AND longitude != 'NA'
+      LIMIT 1
+    `;
+    
+    const coordsResult = await pool.query(coordsQuery, [postal_code]);
+    
+    if (coordsResult.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Postal code not found or coordinates not available'
+      });
+    }
+    
+    const { lat, lon } = coordsResult.rows[0];
+
+    // Now search for schools within radius using Haversine formula
+    const query = `
+      WITH school_coordinates AS (
+        SELECT 
+          s.*,
+          r.latitude::decimal as school_lat,
+          r.longitude::decimal as school_lon,
+          r.email_address,
+          r.telephone_no,
+          r.type_code,
+          r.nature_code
+        FROM Schools s
+        LEFT JOIN raw_general_info r ON LOWER(s.school_name) = LOWER(r.school_name)
+        WHERE r.latitude IS NOT NULL 
+          AND r.longitude IS NOT NULL
+          AND r.latitude != 'NA'
+          AND r.longitude != 'NA'
+      ),
+      distances AS (
+        SELECT 
+          *,
+          (
+            6371 * acos(
+              cos(radians($1)) * cos(radians(school_lat)) *
+              cos(radians(school_lon) - radians($2)) +
+              sin(radians($1)) * sin(radians(school_lat))
+            )
+          ) AS distance_km
+        FROM school_coordinates
+      )
+      SELECT 
+        school_id,
+        school_name,
+        address,
+        postal_code,
+        zone_code,
+        mainlevel_code,
+        principal_name,
+        email_address,
+        telephone_no,
+        type_code,
+        nature_code,
+        ROUND(distance_km::numeric, 2) as distance_km
+      FROM distances
+      WHERE distance_km <= $3
+      ORDER BY distance_km ASC
+      LIMIT 100
+    `;
+
+    const result = await pool.query(query, [lat, lon, radius_km]);
+
+    logActivity('search_by_postal_code', {
+      postal_code,
+      radius_km,
+      results_count: result.rows.length
+    });
+
+    res.json({
+      success: true,
+      results: result.rows,
+      search_params: {
+        postal_code,
+        radius_km,
+        center_latitude: lat,
+        center_longitude: lon
+      }
+    });
+
+  } catch (err) {
+    console.error('Postal code distance search error:', err);
+    res.status(500).json({
+      success: false,
+      error: err.message
+    });
+  }
+});
 // ========== MONGODB ACTIVITY LOGGER ==========
 async function logActivity(action, data) {
   try {
@@ -130,108 +428,154 @@ async function logActivity(action, data) {
 
 // ========== ROUTES ==========
 
-// Login route
+// Login route (optional for admin access)
 app.get('/login', (req, res) => {
-  res.sendFile(path.join(__dirname, '../frontend/login.html'));
+  res.sendFile(path.join(__dirname, '../frontend/index.html')); // Changed to index.html
 });
 
-// ========== PROTECTED DASHBOARD ROUTES ==========
+// ========== PUBLIC DASHBOARD ROUTES ==========
 
-// Main dashboard route - protected (this is your home.html)
-app.get('/home.html', protectPage, (req, res) => {
-  res.sendFile(path.join(__dirname, '../frontend/home.html'));
+// Main dashboard route - PUBLICLY ACCESSIBLE (now serves index.html)
+app.get('/index.html', (req, res) => {
+  res.sendFile(path.join(__dirname, '../frontend/index.html'));
 });
 
-// Dashboard route alias - also protected
-app.get('/dashboard.html', protectPage, (req, res) => {
-  res.sendFile(path.join(__dirname, '../frontend/home.html'));
+// Dashboard route alias - PUBLICLY ACCESSIBLE (now serves index.html)
+app.get('/dashboard.html', (req, res) => {
+  res.sendFile(path.join(__dirname, '../frontend/index.html'));
 });
 
-// ========== AUTHENTICATION ROUTES ==========
+// Keep home.html for backward compatibility but serve index.html
+app.get('/home.html', (req, res) => {
+  res.sendFile(path.join(__dirname, '../frontend/index.html'));
+});
 
-// Login authentication route with JWT
+// ========== LOGIN PAGE ROUTES ==========
+
+// Serve login page
+app.get('/login.html', (req, res) => {
+    console.log('Serving login page');
+    res.sendFile(path.join(__dirname, '../frontend/login.html'));
+});
+
+// Serve login page assets (CSS, JS)
+app.get('/login.js', (req, res) => {
+    res.sendFile(path.join(__dirname, '../frontend/login.js'));
+});
+
+app.get('/style.css', (req, res) => {
+    res.sendFile(path.join(__dirname, '../frontend/style.css'));
+});
+
+// Login authentication route
 app.post('/login', async (req, res) => {
-  try {
-    console.log('Request body:', req.body);
-    
-    const { username, password } = req.body;
+    try {
+        console.log('Login request received:', { 
+            username: req.body.username,
+            timestamp: new Date().toISOString()
+        });
+        
+        const { username, password } = req.body;
 
-    if (!username || !password) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Username and password are required' 
-      });
+        if (!username || !password) {
+            return res.status(400).json({ 
+                success: false, 
+                message: 'Username and password are required' 
+            });
+        }
+
+        console.log('Login attempt for username:', username);
+
+        // Query the database for the user
+        const result = await pool.query(
+            `SELECT id, username, password, is_admin
+             FROM Users 
+             WHERE username = $1`,
+            [username]
+        );
+
+        if (result.rows.length === 0) {
+            console.log('User not found:', username);
+            return res.status(401).json({ 
+                success: false, 
+                message: 'Invalid username or password' 
+            });
+        }
+
+        const user = result.rows[0];
+
+        // Verify password using bcrypt
+        const isPasswordValid = await passwordUtils.verifyPassword(password, user.password);
+        
+        if (!isPasswordValid) {
+            console.log('Invalid password for user:', username);
+            return res.status(401).json({ 
+                success: false, 
+                message: 'Invalid username or password' 
+            });
+        }
+
+        // Login successful - generate JWT token
+        const userData = {
+            user_id: user.id,
+            username: user.username,
+            is_admin: user.is_admin
+        };
+
+        const token = generateToken(userData);
+
+        console.log('✅ Login successful for user:', username, 'Admin:', user.is_admin);
+
+        // Log the login activity
+        logActivity('user_login', { 
+            user_id: user.id,
+            username: user.username,
+            is_admin: user.is_admin
+        });
+
+        // Return success response
+        res.json({
+            success: true,
+            message: 'Login successful',
+            user: userData,
+            token: token,
+            redirectUrl: '/index.html' // Redirect back to main app
+        });
+
+    } catch (error) {
+        console.error('Login error:', error);
+        res.status(500).json({ 
+            success: false, 
+            message: 'Server error during authentication' 
+        });
     }
-
-    console.log('Login attempt for username:', username);
-
-    // Query the database for the user
-    const result = await pool.query(
-      `SELECT id, username, password, is_admin
-       FROM Users 
-       WHERE username = $1`,
-      [username]
-    );
-
-    if (result.rows.length === 0) {
-      console.log('User not found:', username);
-      return res.status(401).json({ 
-        success: false, 
-        message: 'Invalid username or password' 
-      });
-    }
-
-    const user = result.rows[0];
-
-    // Verify password using bcrypt
-    const isPasswordValid = await passwordUtils.verifyPassword(password, user.password);
-    
-    if (!isPasswordValid) {
-      console.log('Invalid password for user:', username);
-      return res.status(401).json({ 
-        success: false, 
-        message: 'Invalid username or password' 
-      });
-    }
-
-    // Login successful - generate REAL JWT token
-    const userData = {
-      user_id: user.id,
-      username: user.username,
-      is_admin: user.is_admin
-    };
-
-    const token = generateToken(userData);
-
-    console.log('✅ Login successful for user:', username, 'Admin:', user.is_admin);
-    console.log('✅ JWT Token generated:', token.substring(0, 20) + '...');
-
-    // Log the login activity
-    logActivity('user_login', { 
-      user_id: user.id,
-      username: user.username,
-      is_admin: user.is_admin
-    });
-
-    // Redirect to home.html (your main dashboard)
-    res.json({
-      success: true,
-      message: 'Login successful',
-      user: userData,
-      token: token,
-      redirectUrl: '/home.html'
-    });
-
-  } catch (error) {
-    console.error('Login error:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Server error during authentication' 
-    });
-  }
 });
 
-// ========== ADMIN-ONLY ROUTES ==========
+// Check authentication status (for client-side verification)
+app.get('/api/auth/status', requireAuth, (req, res) => {
+    res.json({
+        authenticated: true,
+        user: {
+            id: req.user.id,
+            username: req.user.username,
+            is_admin: req.user.is_admin
+        }
+    });
+});
+
+// Logout route
+app.post('/api/auth/logout', requireAuth, (req, res) => {
+    console.log('Logout request for user:', req.user.username);
+    
+    // In a stateless JWT system, we can't invalidate the token on server side
+    // Client should remove the token from localStorage
+    res.json({
+        success: true,
+        message: 'Logout successful'
+    });
+});
+
+// ========== ADMIN-ONLY ROUTES (Still protected) ==========
 
 // Get all users (Admin only)
 app.get('/api/admin/users', requireAuth, requireAdmin, async (req, res) => {
@@ -413,126 +757,10 @@ app.put('/api/admin/users/:id/role', requireAuth, requireAdmin, async (req, res)
   }
 });
 
-// ========== USER ROUTES (Both admin and regular users) ==========
+// ========== PUBLIC SCHOOL DATA ROUTES ==========
 
-// Get user profile
-app.get('/api/user/profile', requireAuth, async (req, res) => {
-  try {
-    const result = await pool.query(
-      'SELECT id, username, is_admin, created_at FROM Users WHERE id = $1',
-      [req.user.id]
-    );
-
-    if (result.rows.length === 0) {
-      return res.status(404).json({ 
-        success: false, 
-        message: 'User not found' 
-      });
-    }
-
-    res.json({
-      success: true,
-      user: result.rows[0]
-    });
-
-  } catch (error) {
-    console.error('Get profile error:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Error fetching profile' 
-    });
-  }
-});
-
-// Update user password
-app.put('/api/user/password', requireAuth, async (req, res) => {
-  try {
-    const { currentPassword, newPassword } = req.body;
-
-    if (!currentPassword || !newPassword) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Current password and new password are required' 
-      });
-    }
-
-    // Get current user with password
-    const userResult = await pool.query(
-      'SELECT password FROM Users WHERE id = $1',
-      [req.user.id]
-    );
-
-    const user = userResult.rows[0];
-
-    // Verify current password
-    const isCurrentPasswordValid = await passwordUtils.verifyPassword(currentPassword, user.password);
-    
-    if (!isCurrentPasswordValid) {
-      return res.status(401).json({ 
-        success: false, 
-        message: 'Current password is incorrect' 
-      });
-    }
-
-    // Hash new password
-    const newHashedPassword = await passwordUtils.hashPassword(newPassword);
-
-    // Update password
-    await pool.query(
-      'UPDATE Users SET password = $1 WHERE id = $2',
-      [newHashedPassword, req.user.id]
-    );
-
-    logActivity('user_password_change', { 
-      user_id: req.user.id,
-      username: req.user.username
-    });
-
-    res.json({
-      success: true,
-      message: 'Password updated successfully'
-    });
-
-  } catch (error) {
-    console.error('Update password error:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Error updating password' 
-    });
-  }
-});
-
-// ========== ROOT & TEST ROUTES ==========
-
-// Root Route
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, '../frontend/index.html'));
-});
-
-// Database Test Routes
-app.get('/pg-test', async (req, res) => {
-  try {
-    const result = await pool.query('SELECT NOW()');
-    res.json({ status: "Connected to PostgreSQL", time: result.rows[0] });
-  } catch (err) {
-    res.status(500).json({ status: "PostgreSQL Error", error: err.message });
-  }
-});
-
-app.get('/mongo-test', async (req, res) => {
-  try {
-    const db = await connectMongo();
-    const collections = await db.listCollections().toArray();
-    res.json({ status: "Connected to MongoDB", collections: collections.map(c => c.name) });
-  } catch (err) {
-    res.status(500).json({ status: "MongoDB Error", error: err.message });
-  }
-});
-
-// ========== CRUD OPERATIONS FOR SCHOOLS ==========
-
-// READ - Get all schools or search by name (Both admin and users)
-app.get('/api/schools', requireAuth, async (req, res) => {
+// READ - Get all schools or search by name (PUBLIC)
+app.get('/api/schools', async (req, res) => {
   try {
     const { name } = req.query;
     let query, params;
@@ -558,8 +786,6 @@ app.get('/api/schools', requireAuth, async (req, res) => {
     // Log search activity to MongoDB
     if (name) {
       logActivity('search_schools', { 
-        user_id: req.user.id,
-        username: req.user.username,
         query: name, 
         results_count: result.rows.length 
       });
@@ -685,10 +911,10 @@ app.delete('/api/schools/:id', requireAuth, requireAdmin, async (req, res) => {
   }
 });
 
-// ========== SCHOOL DETAILS ROUTES ==========
+// ========== PUBLIC SCHOOL DETAILS ROUTES ==========
 
-// Get school subjects by ID
-app.get('/api/schools/:id/subjects', requireAuth, async (req, res) => {
+// Get school subjects by ID (PUBLIC)
+app.get('/api/schools/:id/subjects', async (req, res) => {
     try {
         const { id } = req.params;
         const result = await pool.query(`
@@ -709,8 +935,8 @@ app.get('/api/schools/:id/subjects', requireAuth, async (req, res) => {
     }
 });
 
-// Get school CCAs by ID
-app.get('/api/schools/:id/ccas', requireAuth, async (req, res) => {
+// Get school CCAs by ID (PUBLIC)
+app.get('/api/schools/:id/ccas', async (req, res) => {
     try {
         const { id } = req.params;
         const result = await pool.query(`
@@ -734,8 +960,8 @@ app.get('/api/schools/:id/ccas', requireAuth, async (req, res) => {
     }
 });
 
-// Get school programmes by ID
-app.get('/api/schools/:id/programmes', requireAuth, async (req, res) => {
+// Get school programmes by ID (PUBLIC)
+app.get('/api/schools/:id/programmes', async (req, res) => {
     try {
         const { id } = req.params;
         const result = await pool.query(`
@@ -755,8 +981,8 @@ app.get('/api/schools/:id/programmes', requireAuth, async (req, res) => {
     }
 });
 
-// Get school distinctive programmes by ID
-app.get('/api/schools/:id/distinctives', requireAuth, async (req, res) => {
+// Get school distinctive programmes by ID (PUBLIC)
+app.get('/api/schools/:id/distinctives', async (req, res) => {
     try {
         const { id } = req.params;
         const result = await pool.query(`
@@ -778,8 +1004,8 @@ app.get('/api/schools/:id/distinctives', requireAuth, async (req, res) => {
     }
 });
 
-// ========== GET SCHOOL DETAILS BY ID ==========
-app.get('/api/schools/:id/details', requireAuth, async (req, res) => {
+// ========== GET SCHOOL DETAILS BY ID (PUBLIC) ==========
+app.get('/api/schools/:id/details', async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -839,10 +1065,10 @@ app.get('/api/schools/:id/details', requireAuth, async (req, res) => {
   }
 });
 
-// ========== READ-ONLY QUERY ROUTES (Both admin and users) ==========
+// ========== PUBLIC READ-ONLY QUERY ROUTES ==========
 
-// School subjects - SEARCH BY SUBJECT, NOT SCHOOL
-app.get('/api/schools/subjects', requireAuth, async (req, res) => {
+// School subjects - SEARCH BY SUBJECT, NOT SCHOOL (PUBLIC)
+app.get('/api/schools/subjects', async (req, res) => {
   try {
     const { name } = req.query;
 
@@ -870,8 +1096,6 @@ app.get('/api/schools/subjects', requireAuth, async (req, res) => {
     );
 
     logActivity('search_subjects', { 
-      user_id: req.user.id,
-      username: req.user.username,
       query: name, 
       results_count: result.rows.length 
     });
@@ -883,8 +1107,8 @@ app.get('/api/schools/subjects', requireAuth, async (req, res) => {
   }
 });
 
-// School CCAs - SEARCH BY CCA, NOT SCHOOL
-app.get('/api/schools/ccas', requireAuth, async (req, res) => {
+// School CCAs - SEARCH BY CCA, NOT SCHOOL (PUBLIC)
+app.get('/api/schools/ccas', async (req, res) => {
   try {
     const { name } = req.query;
 
@@ -916,8 +1140,6 @@ app.get('/api/schools/ccas', requireAuth, async (req, res) => {
     );
 
     logActivity('search_ccas', { 
-      user_id: req.user.id,
-      username: req.user.username,
       query: name, 
       results_count: result.rows.length 
     });
@@ -929,8 +1151,8 @@ app.get('/api/schools/ccas', requireAuth, async (req, res) => {
   }
 });
 
-// School Programmes - SEARCH BY PROGRAMME, NOT SCHOOL
-app.get('/api/schools/programmes', requireAuth, async (req, res) => {
+// School Programmes - SEARCH BY PROGRAMME, NOT SCHOOL (PUBLIC)
+app.get('/api/schools/programmes', async (req, res) => {
   try {
     const { name } = req.query;
 
@@ -958,8 +1180,6 @@ app.get('/api/schools/programmes', requireAuth, async (req, res) => {
     );
 
     logActivity('search_programmes', { 
-      user_id: req.user.id,
-      username: req.user.username,
       query: name, 
       results_count: result.rows.length 
     });
@@ -971,8 +1191,8 @@ app.get('/api/schools/programmes', requireAuth, async (req, res) => {
   }
 });
 
-// School Distinctives - SEARCH BY DISTINCTIVE, NOT SCHOOL
-app.get('/api/schools/distinctives', requireAuth, async (req, res) => {
+// School Distinctives - SEARCH BY DISTINCTIVE, NOT SCHOOL (PUBLIC)
+app.get('/api/schools/distinctives', async (req, res) => {
   try {
     const { name } = req.query;
 
@@ -1010,8 +1230,6 @@ app.get('/api/schools/distinctives', requireAuth, async (req, res) => {
     );
 
     logActivity('search_distinctives', { 
-      user_id: req.user.id,
-      username: req.user.username,
       query: name, 
       results_count: result.rows.length 
     });
@@ -1023,10 +1241,10 @@ app.get('/api/schools/distinctives', requireAuth, async (req, res) => {
   }
 });
 
-// ========== UNIVERSAL SEARCH ==========
+// ========== PUBLIC UNIVERSAL SEARCH ==========
 
-// Universal Search - search across all tables
-app.get('/api/search/universal', requireAuth, async (req, res) => {
+// Universal Search - search across all tables (PUBLIC)
+app.get('/api/search/universal', async (req, res) => {
   try {
     const { query } = req.query;
 
@@ -1161,8 +1379,6 @@ app.get('/api/search/universal', requireAuth, async (req, res) => {
     // --- Optional MongoDB logging ---
     if (typeof logActivity === 'function') {
       logActivity('universal_search', {
-        user_id: req.user.id,
-        username: req.user.username,
         query,
         total_results: results.total,
         breakdown: {
@@ -1189,8 +1405,8 @@ app.get('/api/search/universal', requireAuth, async (req, res) => {
   }
 });
 
-// Get details for a specific item found in universal search
-app.get('/api/search/details/:type/:id', requireAuth, async (req, res) => {
+// Get details for a specific item found in universal search (PUBLIC)
+app.get('/api/search/details/:type/:id', async (req, res) => {
   try {
     const { type, id } = req.params;
     let query, params;
@@ -1238,7 +1454,7 @@ app.get('/api/search/details/:type/:id', requireAuth, async (req, res) => {
           SELECT 
             c.cca_generic_name,
             JSON_AGG(
-              JSON_BUILD_OBJECT(
+              JSON_BUILD_Object(
                 'school_id', sch.school_id,
                 'school_name', sch.school_name,
                 'customized_name', sc.cca_customized_name,
@@ -1325,8 +1541,8 @@ app.get('/api/search/details/:type/:id', requireAuth, async (req, res) => {
   }
 });
 
-// ========== ADVANCED SEARCH ENDPOINT ==========
-app.post('/api/search/advanced', requireAuth, async (req, res) => {
+// ========== PUBLIC ADVANCED SEARCH ENDPOINT ==========
+app.post('/api/search/advanced', async (req, res) => {
   try {
     const searchParams = req.body;
 
@@ -1693,8 +1909,6 @@ app.post('/api/search/advanced', requireAuth, async (req, res) => {
 
     // Log to MongoDB
     await logActivity('advanced_search', {
-      user_id: req.user.id,
-      username: req.user.username,
       criteria_count: Object.keys(searchParams).length,
       criteria: searchParams,
       results_count: result.rows.length
@@ -1718,10 +1932,10 @@ app.post('/api/search/advanced', requireAuth, async (req, res) => {
   }
 });
 
-// ========== ANALYTICS ENDPOINTS ==========
+// ========== PUBLIC ANALYTICS ENDPOINTS ==========
 
-// 1. Schools by Zone with Statistics
-app.get('/api/analytics/schools-by-zone', requireAuth, async (req, res) => {
+// 1. Schools by Zone with Statistics (PUBLIC)
+app.get('/api/analytics/schools-by-zone', async (req, res) => {
   try {
     const query = `
       SELECT 
@@ -1737,8 +1951,6 @@ app.get('/api/analytics/schools-by-zone', requireAuth, async (req, res) => {
     const result = await pool.query(query);
 
     logActivity('view_zone_statistics', {
-      user_id: req.user.id,
-      username: req.user.username,
       zones_analyzed: result.rows.length
     });
 
@@ -1752,8 +1964,8 @@ app.get('/api/analytics/schools-by-zone', requireAuth, async (req, res) => {
   }
 });
 
-// 2. Schools with Subject Count
-app.get('/api/analytics/schools-subject-count', requireAuth, async (req, res) => {
+// 2. Schools with Subject Count (PUBLIC)
+app.get('/api/analytics/schools-subject-count', async (req, res) => {
   try {
     const query = `
       SELECT 
@@ -1778,8 +1990,6 @@ app.get('/api/analytics/schools-subject-count', requireAuth, async (req, res) =>
     const result = await pool.query(query);
 
     logActivity('view_subject_diversity', {
-      user_id: req.user.id,
-      username: req.user.username,
       schools_analyzed: result.rows.length
     });
 
@@ -1799,8 +2009,8 @@ app.get('/api/analytics/schools-subject-count', requireAuth, async (req, res) =>
   }
 });
 
-// 3. Schools Offering More Subjects Than Average
-app.get('/api/analytics/above-average-subjects', requireAuth, async (req, res) => {
+// 3. Schools Offering More Subjects Than Average (PUBLIC)
+app.get('/api/analytics/above-average-subjects', async (req, res) => {
   try {
     const query = `
       WITH subject_counts AS (
@@ -1832,8 +2042,6 @@ app.get('/api/analytics/above-average-subjects', requireAuth, async (req, res) =
     const result = await pool.query(query);
 
     logActivity('view_above_average_schools', {
-      user_id: req.user.id,
-      username: req.user.username,
       schools_found: result.rows.length
     });
 
@@ -1848,8 +2056,8 @@ app.get('/api/analytics/above-average-subjects', requireAuth, async (req, res) =
   }
 });
 
-// 4. CCA Participation Analysis
-app.get('/api/analytics/cca-participation', requireAuth, async (req, res) => {
+// 4. CCA Participation Analysis (PUBLIC)
+app.get('/api/analytics/cca-participation', async (req, res) => {
   try {
     const query = `
       SELECT 
@@ -1871,8 +2079,6 @@ app.get('/api/analytics/cca-participation', requireAuth, async (req, res) => {
     const result = await pool.query(query);
 
     logActivity('view_cca_participation', {
-      user_id: req.user.id,
-      username: req.user.username,
       ccas_analyzed: result.rows.length
     });
 
@@ -1886,8 +2092,8 @@ app.get('/api/analytics/cca-participation', requireAuth, async (req, res) => {
   }
 });
 
-// 5. Data Completeness
-app.get('/api/analytics/data-completeness', requireAuth, async (req, res) => {
+// 5. Data Completeness (PUBLIC)
+app.get('/api/analytics/data-completeness', async (req, res) => {
   try {
     const query = `
       SELECT 
@@ -1947,8 +2153,6 @@ app.get('/api/analytics/data-completeness', requireAuth, async (req, res) => {
     };
 
     logActivity('view_data_completeness', {
-      user_id: req.user.id,
-      username: req.user.username,
       ...summary
     });
 
@@ -1963,8 +2167,8 @@ app.get('/api/analytics/data-completeness', requireAuth, async (req, res) => {
   }
 });
 
-// 6. Zone Comparison Analysis
-app.get('/api/analytics/zone-comparison', requireAuth, async (req, res) => {
+// 6. Zone Comparison Analysis (PUBLIC)
+app.get('/api/analytics/zone-comparison', async (req, res) => {
   try {
     const query = `
       SELECT 
@@ -1999,8 +2203,6 @@ app.get('/api/analytics/zone-comparison', requireAuth, async (req, res) => {
     const result = await pool.query(query);
 
     logActivity('view_zone_comparison', {
-      user_id: req.user.id,
-      username: req.user.username,
       zones: result.rows.length
     });
 
@@ -2014,7 +2216,7 @@ app.get('/api/analytics/zone-comparison', requireAuth, async (req, res) => {
   }
 });
 
-// ========== MONGODB ANALYTICS ROUTES ==========
+// ========== ADMIN-ONLY MONGODB ANALYTICS ROUTES ==========
 
 // Get activity logs (Admin only)
 app.get('/api/analytics/logs', requireAuth, requireAdmin, async (req, res) => {
@@ -2055,6 +2257,122 @@ app.get('/api/analytics/popular', requireAuth, requireAdmin, async (req, res) =>
   }
 });
 
+// ========== USER ROUTES (Optional - for admin users only) ==========
+
+// Get user profile (for authenticated admin users)
+app.get('/api/user/profile', requireAuth, async (req, res) => {
+  try {
+    const result = await pool.query(
+      'SELECT id, username, is_admin, created_at FROM Users WHERE id = $1',
+      [req.user.id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'User not found' 
+      });
+    }
+
+    res.json({
+      success: true,
+      user: result.rows[0]
+    });
+
+  } catch (error) {
+    console.error('Get profile error:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Error fetching profile' 
+    });
+  }
+});
+
+// Update user password (for authenticated admin users)
+app.put('/api/user/password', requireAuth, async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Current password and new password are required' 
+      });
+    }
+
+    // Get current user with password
+    const userResult = await pool.query(
+      'SELECT password FROM Users WHERE id = $1',
+      [req.user.id]
+    );
+
+    const user = userResult.rows[0];
+
+    // Verify current password
+    const isCurrentPasswordValid = await passwordUtils.verifyPassword(currentPassword, user.password);
+    
+    if (!isCurrentPasswordValid) {
+      return res.status(401).json({ 
+        success: false, 
+        message: 'Current password is incorrect' 
+      });
+    }
+
+    // Hash new password
+    const newHashedPassword = await passwordUtils.hashPassword(newPassword);
+
+    // Update password
+    await pool.query(
+      'UPDATE Users SET password = $1 WHERE id = $2',
+      [newHashedPassword, req.user.id]
+    );
+
+    logActivity('user_password_change', { 
+      user_id: req.user.id,
+      username: req.user.username
+    });
+
+    res.json({
+      success: true,
+      message: 'Password updated successfully'
+    });
+
+  } catch (error) {
+    console.error('Update password error:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Error updating password' 
+    });
+  }
+});
+
+// ========== ROOT & TEST ROUTES ==========
+
+// Root Route - serves index.html directly without any redirects
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, '../frontend/index.html'));
+});
+
+// Database Test Routes (PUBLIC)
+app.get('/pg-test', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT NOW()');
+    res.json({ status: "Connected to PostgreSQL", time: result.rows[0] });
+  } catch (err) {
+    res.status(500).json({ status: "PostgreSQL Error", error: err.message });
+  }
+});
+
+app.get('/mongo-test', async (req, res) => {
+  try {
+    const db = await connectMongo();
+    const collections = await db.listCollections().toArray();
+    res.json({ status: "Connected to MongoDB", collections: collections.map(c => c.name) });
+  } catch (err) {
+    res.status(500).json({ status: "MongoDB Error", error: err.message });
+  }
+});
+
 // Temporary test endpoint 
 app.get('/api/test/check-columns', async (req, res) => {
   try {
@@ -2084,16 +2402,15 @@ app.use((err, req, res, next) => {
 
 app.listen(port, () => {
   console.log(`Server running at http://localhost:${port}`);
-  console.log(`PostgreSQL: Connected with role-based permissions`);
+  console.log(`PostgreSQL: Connected with public access`);
   console.log(`MongoDB: Ready for activity logging`);
-  console.log(`BCrypt: Password hashing enabled`);
-  console.log(`JWT: Authentication enabled`);
+  console.log(`Authentication: Admin-only features protected`);
   console.log(`\nAvailable endpoints:`);
-  console.log(`  GET  /api/schools - List/search schools`);
+  console.log(`  GET  /api/schools - List/search schools (PUBLIC)`);
   console.log(`  POST /api/schools - Create school (Admin only)`);
   console.log(`  PUT  /api/schools/:id - Update school (Admin only)`);
   console.log(`  DEL  /api/schools/:id - Delete school (Admin only)`);
-  console.log(`  GET  /api/search/universal - Universal search`);
-  console.log(`  POST /api/search/advanced - Advanced search`);
-  console.log(`  GET  /api/analytics/* - Analytics endpoints`);
+  console.log(`  GET  /api/search/universal - Universal search (PUBLIC)`);
+  console.log(`  POST /api/search/advanced - Advanced search (PUBLIC)`);
+  console.log(`  GET  /api/analytics/* - Analytics endpoints (PUBLIC)`);
 });
