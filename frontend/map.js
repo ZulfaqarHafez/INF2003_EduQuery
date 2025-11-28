@@ -28,36 +28,6 @@ const ZONE_COLORS = {
   'CENTRAL': '#8B5CF6'
 };
 
-// ========== Authentication Helper ==========
-function getAuthToken() {
-    const token = localStorage.getItem('authToken');
-    if (!token) {
-        console.error('❌ No authentication token found');
-        return null;
-    }
-    
-    // Verify token format
-    try {
-        const parts = token.split('.');
-        if (parts.length !== 3) {
-            console.error('❌ Invalid token format');
-            return null;
-        }
-        return token;
-    } catch (error) {
-        console.error('❌ Token validation error:', error);
-        return null;
-    }
-}
-
-function handleAuthError() {
-    localStorage.removeItem('authToken');
-    showToast('Session expired. Please login again.', 'error');
-    setTimeout(() => {
-        window.location.href = '/login?error=Session expired';
-    }, 2000);
-}
-
 // ========== Initialize Map ==========
 function initializeMap() {
   // Prevent double initialization
@@ -305,150 +275,47 @@ document.addEventListener('click', function(event) {
 // ========== Load Schools from Database ==========
 async function loadSchoolsMap() {
   showMapLoading(true);
-  
+
   try {
-    // Get authentication token
-    const token = getAuthToken();
-    if (!token) {
-      throw new Error('Authentication required. Please login again.');
-    }
+    // Fetch all schools from your API
+    const response = await fetch('/api/schools?name=');
+    if (!response.ok) throw new Error('Failed to fetch schools');
 
-    console.log('🔑 Token found, fetching schools...');
-    
-    // Fetch all schools from your API with authentication
-    const response = await fetch('/api/schools?name=', {
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      }
-    });
+    schools = await response.json();
 
-    console.log('📡 Response status:', response.status);
+    console.log(`Loaded ${schools.length} schools from database`);
 
-    if (response.status === 401) {
-      handleAuthError();
-      return;
-    }
-
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-
-    // Get response as text first to handle potential errors
-    const responseText = await response.text();
-    
-    // Check if response is HTML (error page) instead of JSON
-    if (responseText.trim().startsWith('<!DOCTYPE') || responseText.trim().startsWith('<html')) {
-      throw new Error('Server returned HTML instead of JSON data. Check API endpoint.');
-    }
-
-    // Try to parse as JSON
-    let schoolsData;
-    try {
-      schoolsData = JSON.parse(responseText);
-    } catch (parseError) {
-      console.error('❌ JSON parse error:', parseError);
-      console.error('Response content:', responseText);
-      throw new Error('Invalid JSON response from server');
-    }
-    
-    schools = schoolsData;
-    
-    console.log(`✅ Loaded ${schools.length} schools from database`);
-    
     // Update statistics
     document.getElementById('totalSchoolsMap').textContent = schools.length;
-    
+
     // Geocode and display schools
     await displaySchools(schools);
-    
+
     showToast(`Loaded ${schools.length} schools`, 'success');
   } catch (error) {
     console.error('Error loading schools:', error);
     showToast('Failed to load schools: ' + error.message, 'error');
-    
-    // Add test data for debugging if API fails
-    if (schools.length === 0) {
-      addTestSchoolsForDebug();
-    }
   } finally {
     showMapLoading(false);
   }
-}
-
-// ========== Test Data for Debugging ==========
-function addTestSchoolsForDebug() {
-  console.log('🧪 Adding test schools for debugging...');
-  
-  const testSchools = [
-    {
-      school_id: 1,
-      school_name: "Test Primary School North",
-      address: "123 North Bridge Road, Singapore",
-      postal_code: "179103",
-      zone_code: "NORTH",
-      mainlevel_code: "PRIMARY",
-      principal_name: "Mr. Tan Ah Kow"
-    },
-    {
-      school_id: 2,
-      school_name: "Test Secondary School South",
-      address: "456 South Road, Singapore",
-      postal_code: "118259", 
-      zone_code: "SOUTH",
-      mainlevel_code: "SECONDARY",
-      principal_name: "Ms. Lee Mei Ling"
-    },
-    {
-      school_id: 3,
-      school_name: "Test Mixed School Central",
-      address: "789 Orchard Road, Singapore",
-      postal_code: "238839",
-      zone_code: "CENTRAL", 
-      mainlevel_code: "MIXED LEVEL",
-      principal_name: "Dr. Raj Kumar"
-    },
-    {
-      school_id: 4,
-      school_name: "Test Junior College East",
-      address: "321 East Coast Road, Singapore", 
-      postal_code: "428994",
-      zone_code: "EAST",
-      mainlevel_code: "JUNIOR COLLEGE",
-      principal_name: "Mr. Wong Chee Meng"
-    },
-    {
-      school_id: 5,
-      school_name: "Test International School West",
-      address: "987 West Coast Highway, Singapore",
-      postal_code: "126743",
-      zone_code: "WEST",
-      mainlevel_code: "INTERNATIONAL",
-      principal_name: "Ms. Sarah Johnson"
-    }
-  ];
-  
-  schools = testSchools;
-  displaySchools(testSchools);
-  showToast('Using demo data - API connection unavailable', 'warning');
 }
 
 // ========== Display Schools on Map ==========
 async function displaySchools(schoolsToDisplay) {
   // Clear existing markers
   clearMarkers();
-  
+
   let mappedCount = 0;
   let failedCount = 0;
-  
+
   // Process schools in batches to avoid overwhelming the geocoding service
   const batchSize = 10;
   const batches = [];
-  
+
   for (let i = 0; i < schoolsToDisplay.length; i += batchSize) {
     batches.push(schoolsToDisplay.slice(i, i + batchSize));
   }
-  
+
   for (const batch of batches) {
     const promises = batch.map(async (school) => {
       try {
@@ -456,10 +323,10 @@ async function displaySchools(schoolsToDisplay) {
         if (currentZoneFilter !== 'all' && school.zone_code !== currentZoneFilter) {
           return null;
         }
-        
+
         // Get coordinates from postal code
         const coords = await geocodePostalCode(school.postal_code);
-        
+
         if (coords) {
           addSchoolMarker(school, coords);
           mappedCount++;
@@ -475,28 +342,29 @@ async function displaySchools(schoolsToDisplay) {
         return null;
       }
     });
-    
+
     // Wait for batch to complete
     await Promise.all(promises);
-    
+
     // Update progress
     document.getElementById('mappedSchools').textContent = mappedCount;
-    
+
     // Small delay between batches to avoid rate limiting
     if (batches.indexOf(batch) < batches.length - 1) {
       await new Promise(resolve => setTimeout(resolve, 500));
     }
   }
-  
+
   // Fit map to show all markers if we have any
   if (mappedCount > 0) {
     fitMapToMarkers();
   }
-  
+
   // Show summary
   console.log(`Geocoding summary: ${mappedCount} mapped, ${failedCount} failed`);
   
   if (failedCount > 0) {
+    showToast(`Mapped ${mappedCount} schools, ${failedCount} failed`, 'warning');
     console.log('Schools that failed to geocode:');
     schoolsToDisplay.forEach(school => {
       if (!schoolMarkerMap.has(school.school_id)) {
@@ -515,47 +383,47 @@ async function geocodePostalCode(postalCode) {
   if (geocodeCache[postalCode]) {
     return geocodeCache[postalCode];
   }
-  
+
   try {
     // Singapore's OneMap API for geocoding
     const response = await fetch(`https://www.onemap.gov.sg/api/common/elastic/search?searchVal=${postalCode}&returnGeom=Y&getAddrDetails=Y`);
-    
+
     if (!response.ok) {
       throw new Error('OneMap API request failed');
     }
-    
+
     const data = await response.json();
-    
+
     if (data.found > 0 && data.results && data.results.length > 0) {
       const result = data.results[0];
       const coords = {
         lat: parseFloat(result.LATITUDE),
         lng: parseFloat(result.LONGITUDE)
       };
-      
+
       // Cache the result
       geocodeCache[postalCode] = coords;
       return coords;
     }
-    
+
     // Fallback: Try to estimate based on postal code district
     const districtCoords = getDistrictCoordinates(postalCode);
     if (districtCoords) {
       geocodeCache[postalCode] = districtCoords;
       return districtCoords;
     }
-    
+
     return null;
   } catch (error) {
     console.error(`Geocoding error for ${postalCode}:`, error);
-    
+
     // Use fallback coordinates based on postal district
     const fallbackCoords = getDistrictCoordinates(postalCode);
     if (fallbackCoords) {
       geocodeCache[postalCode] = fallbackCoords;
       return fallbackCoords;
     }
-    
+
     return null;
   }
 }
@@ -564,7 +432,7 @@ async function geocodePostalCode(postalCode) {
 function getDistrictCoordinates(postalCode) {
   // Singapore postal code districts (first 2 digits)
   const district = postalCode.substring(0, 2);
-  
+
   // Approximate coordinates for each district
   const districtCoords = {
     // District 01-06: Raffles Place, Cecil, Marina, People's Park
@@ -680,14 +548,14 @@ function getDistrictCoordinates(postalCode) {
     // District 82: Punggol, Sengkang
     '82': { lat: 1.3840, lng: 103.9065 }
   };
-  
+
   return districtCoords[district] || null;
 }
 
 // ========== Add School Marker to Map ==========
 function addSchoolMarker(school, coords) {
   const color = ZONE_COLORS[school.zone_code] || '#6B7280';
-  
+
   // Create custom icon
   const icon = L.divIcon({
     className: 'custom-marker',
@@ -711,10 +579,10 @@ function addSchoolMarker(school, coords) {
     iconAnchor: [15, 15],
     popupAnchor: [0, -15]
   });
-  
+
   // Create marker
   const marker = L.marker([coords.lat, coords.lng], { icon: icon });
-  
+
   // Create popup content
   const popupContent = `
     <div class="popup-content">
@@ -728,13 +596,13 @@ function addSchoolMarker(school, coords) {
       </div>
     </div>
   `;
-  
+
   marker.bindPopup(popupContent);
-  
+
   // Add to layer group
   markerLayer.addLayer(marker);
   markers.push(marker);
-  
+
   // Store marker for quick lookup
   schoolMarkerMap.set(school.school_id, marker);
   
@@ -753,7 +621,7 @@ function clearMarkers() {
 // ========== Fit Map to Show All Markers ==========
 function fitMapToMarkers() {
   if (markers.length === 0) return;
-  
+
   const group = L.featureGroup(markers);
   map.fitBounds(group.getBounds().pad(0.1));
 }
@@ -762,7 +630,7 @@ function fitMapToMarkers() {
 function resetMapView() {
   map.setView(SINGAPORE_CENTER, 11);
   currentZoneFilter = 'all';
-  
+
   // Reset filter chips
   document.querySelectorAll('.chip').forEach(chip => {
     chip.classList.remove('active');
@@ -770,10 +638,10 @@ function resetMapView() {
       chip.classList.add('active');
     }
   });
-  
+
   // Update zone display
   document.getElementById('selectedZone').textContent = 'All';
-  
+
   // Clear search
   clearMapSearch();
   
@@ -786,15 +654,15 @@ function resetMapView() {
 // ========== Zone Filter ==========
 function filterByZone(zone) {
   currentZoneFilter = zone;
-  
+
   // Update zone display
   document.getElementById('selectedZone').textContent = zone === 'all' ? 'All' : zone;
-  
+
   // Filter and redisplay
   const filteredSchools = zone === 'all' 
     ? schools 
     : schools.filter(s => s.zone_code === zone);
-  
+
   displaySchools(filteredSchools);
 }
 
@@ -810,12 +678,12 @@ function showMapLoading(show) {
 function showToast(message, type = 'info') {
   const toast = document.getElementById('toast');
   const toastMessage = document.getElementById('toastMessage');
-  
+
   if (!toast || !toastMessage) return;
-  
+
   toastMessage.textContent = message;
   toast.className = 'toast show ' + type;
-  
+
   setTimeout(() => {
     toast.classList.remove('show');
   }, 3000);
@@ -837,38 +705,19 @@ function showMapHelp() {
   );
 }
 
-// ========== Refresh Map Function ==========
-function refreshMap() {
-  console.log('🔄 Refreshing map data...');
-  showToast('Refreshing school data...', 'info');
-  loadSchoolsMap();
-}
-
 // ========== Initialize on Page Load ==========
 document.addEventListener('DOMContentLoaded', function() {
-  console.log('Map module loaded and ready');
-  
   // Setup zone filter chips (but don't initialize map yet)
   document.querySelectorAll('.chip').forEach(chip => {
     chip.addEventListener('click', function() {
       // Update active state
       document.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
       this.classList.add('active');
-      
+
       // Apply filter
       filterByZone(this.dataset.zone);
     });
   });
-  
+
   console.log('Map event listeners attached - waiting for map view activation');
 });
-
-// ========== Public API ==========
-window.initializeMap = initializeMap;
-window.loadSchoolsMap = loadSchoolsMap;
-window.searchSchoolsOnMap = searchSchoolsOnMap;
-window.clearMapSearch = clearMapSearch;
-window.resetMapView = resetMapView;
-window.refreshMap = refreshMap;
-window.showMapHelp = showMapHelp;
-window.filterByZone = filterByZone;
