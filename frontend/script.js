@@ -362,7 +362,7 @@ function renderTable(data, queryType) {
       html += '</tr>';
     } else {
       // Make the row clickable for non-"all" searches
-      html += `<tr data-clickable="true" onclick='viewItemDetails("schools", "${row.school_id}")' style="cursor: pointer;">`;
+      html += `<tr data-clickable="true" data-school-id="${row.school_id}" onclick='viewItemDetails("schools", "${row.school_id}")' style="cursor: pointer;">`;
       
       if (queryType === 'subjects') {
         html += `<td><strong>${row.school_name || '-'}</strong></td>`;
@@ -635,7 +635,7 @@ function renderResultItem(type, item, query) {
     return '';
   }
   
-  let html = `<div class="result-item" onclick='viewItemDetails("schools", ${itemId})'>`;
+  let html = `<div class="result-item" data-school-id="${itemId}" onclick='viewItemDetails("schools", ${itemId})'>`;
   html += '<div class="result-item-header">';
   
   // Title with highlighted search term
@@ -723,17 +723,50 @@ window.viewItemDetails = async function(type, id) {
         return;
     }
     
+    // **CHECK FOR COMPARISON MODE FIRST**
+    if (comparisonMode.active && type === 'schools') {
+        // Try to get school name from multiple possible locations
+        let schoolName = 'Unknown School';
+        
+        // Try 1: Find by data-school-id attribute
+        let element = document.querySelector(`[data-school-id="${id}"]`);
+        
+        if (element) {
+            // Universal search result item
+            const titleElement = element.querySelector('.result-item-title');
+            if (titleElement) {
+                schoolName = titleElement.textContent.trim();
+            } 
+            // Table row
+            else {
+                const strongElement = element.querySelector('td strong');
+                if (strongElement) {
+                    schoolName = strongElement.textContent.trim();
+                } else {
+                    const firstCell = element.querySelector('td:first-child');
+                    if (firstCell) {
+                        schoolName = firstCell.textContent.trim();
+                    }
+                }
+            }
+        }
+        
+        console.log('Extracted school name:', schoolName, 'for ID:', id);
+        
+        const handled = window.handleComparisonClick(id, schoolName);
+        if (handled) return; // Stop here if comparison mode handled it
+    }
+    
+    // Normal detail view behavior
     showToast('Loading details...', 'info');
     
     try {
         if (type === 'schools') {
-            // Load comprehensive school data
             const fullData = await loadFullSchoolDetails(id);
             if (fullData) {
                 displayEnhancedSchoolModal(fullData);
             }
         } else {
-            // Original logic for non-school items
             let response = await fetch(`/api/search/details/${type}/${id}`);
             const data = await response.json();
             
@@ -1308,14 +1341,15 @@ window.startComparisonMode = function() {
   comparisonMode.school2 = null;
   
   showComparisonNotification();
-  
-  // Add click listeners to all school rows in results
-  addComparisonClickListeners();
-  
+  // addComparisonClickListeners();
   showToast('Click on two schools to compare', 'info');
 };
 
 function showComparisonNotification() {
+  // Remove existing notification if any
+  const existing = document.getElementById('comparisonNotification');
+  if (existing) existing.remove();
+  
   const html = `
     <div id="comparisonNotification" class="comparison-notification">
       <div class="comparison-notification-content">
@@ -1324,20 +1358,20 @@ function showComparisonNotification() {
             <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z"/>
             <path fill-rule="evenodd" d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5z"/>
           </svg>
-          <span>Comparison Mode</span>
+          <span>Comparison Mode Active</span>
         </div>
         <div class="comparison-notification-body">
           <div class="comparison-school-slot" id="comparisonSlot1">
             <div class="slot-number">1</div>
-            <div class="slot-text">Click a school</div>
+            <div class="slot-text">Select first school</div>
           </div>
           <div class="comparison-school-slot" id="comparisonSlot2">
             <div class="slot-number">2</div>
-            <div class="slot-text">Click a school</div>
+            <div class="slot-text">Select second school</div>
           </div>
         </div>
         <button class="btn-danger" onclick="cancelComparison()">
-          Cancel Comparison
+          Exit Comparison Mode
         </button>
       </div>
     </div>
@@ -1346,38 +1380,37 @@ function showComparisonNotification() {
   document.body.insertAdjacentHTML('beforeend', html);
 }
 
-function addComparisonClickListeners() {
-  // Add to all existing school rows
-  document.querySelectorAll('.data-table tbody tr').forEach(row => {
-    const schoolId = extractSchoolIdFromRow(row);
-    if (schoolId) {
-      row.style.cursor = 'pointer';
-      row.classList.add('comparison-selectable');
-      row.onclick = (e) => {
-        // Don't trigger if clicking action buttons
-        if (e.target.closest('button')) return;
-        selectSchoolForComparison(row, schoolId);
-      };
-    }
-  });
-  
-  // Add to clickable result items
-  document.querySelectorAll('.result-item').forEach(item => {
-    const schoolId = item.getAttribute('onclick')?.match(/viewItemDetails\("schools", (\d+)\)/)?.[1];
-    if (schoolId) {
-      item.classList.add('comparison-selectable');
-      const originalOnclick = item.onclick;
-      item.onclick = (e) => {
-        if (comparisonMode.active) {
-          e.stopPropagation();
-          selectSchoolForComparison(item, schoolId);
-        } else if (originalOnclick) {
-          originalOnclick.call(item, e);
-        }
-      };
-    }
-  });
-}
+// function addComparisonClickListeners() {
+//   // Add to all existing school rows
+//   document.querySelectorAll('.data-table tbody tr').forEach(row => {
+//     const schoolId = extractSchoolIdFromRow(row);
+//     if (schoolId) {
+//       row.style.cursor = 'pointer';
+//       row.classList.add('comparison-selectable');
+//       row.onclick = (e) => {
+//         // Don't trigger if clicking action buttons
+//         if (e.target.closest('button')) return;
+//         selectSchoolForComparison(row, schoolId);
+//       };
+//     }
+//   });
+//   // Add to clickable result items
+//   document.querySelectorAll('.result-item').forEach(item => {
+//     const schoolId = item.getAttribute('onclick')?.match(/viewItemDetails\("schools", (\d+)\)/)?.[1];
+//     if (schoolId) {
+//       item.classList.add('comparison-selectable');
+//       const originalOnclick = item.onclick;
+//       item.onclick = (e) => {
+//         if (comparisonMode.active) {
+//           e.stopPropagation();
+//           selectSchoolForComparison(item, schoolId);
+//         } else if (originalOnclick) {
+//           originalOnclick.call(item, e);
+//         }
+//       };
+//     }
+//   });
+// }
 
 function extractSchoolIdFromRow(row) {
   // Try to find school_id from the first cell (school_id column)
@@ -1473,20 +1506,44 @@ function updateComparisonSlot(slotNumber, schoolName) {
   }
 }
 
+window.handleComparisonClick = function(schoolId, schoolName) {
+  if (!comparisonMode.active) return false;
+  
+  console.log('Comparison click:', schoolId, schoolName);
+  
+  // If this school is already selected, deselect it
+  if (comparisonMode.school1?.id === String(schoolId)) {
+    comparisonMode.school1 = null;
+    updateComparisonSlot(1, null);
+    return true;
+  }
+  if (comparisonMode.school2?.id === String(schoolId)) {
+    comparisonMode.school2 = null;
+    updateComparisonSlot(2, null);
+    return true;
+  }
+  
+  // Add to first empty slot
+  if (!comparisonMode.school1) {
+    comparisonMode.school1 = { id: String(schoolId), name: schoolName };
+    updateComparisonSlot(1, schoolName);
+    showToast(`School 1: ${schoolName}`, 'success');
+    return true;
+  } else if (!comparisonMode.school2) {
+    comparisonMode.school2 = { id: String(schoolId), name: schoolName };
+    updateComparisonSlot(2, schoolName);
+    showToast(`School 2: ${schoolName}`, 'success');
+    
+    // Both schools selected, execute comparison
+    setTimeout(() => executeComparison(), 500);
+    return true;
+  }
+  
+  return true;
+};
+
 window.cancelComparison = function() {
   comparisonMode.active = false;
-  
-  // Remove visual indicators
-  document.querySelectorAll('.comparison-selected-1, .comparison-selected-2').forEach(el => {
-    el.classList.remove('comparison-selected-1', 'comparison-selected-2');
-  });
-  
-  document.querySelectorAll('.comparison-selectable').forEach(el => {
-    el.classList.remove('comparison-selectable');
-    if (el.tagName === 'TR') {
-      el.style.cursor = '';
-    }
-  });
   
   // Remove notification
   const notification = document.getElementById('comparisonNotification');
@@ -1504,6 +1561,7 @@ async function executeComparison() {
     return;
   }
   
+  console.log('Executing comparison:', comparisonMode.school1, comparisonMode.school2);
   showToast('Loading comparison...', 'info');
   
   try {
@@ -1516,7 +1574,12 @@ async function executeComparison() {
       })
     });
     
+    if (!response.ok) {
+      throw new Error(`Server responded with status ${response.status}`);
+    }
+    
     const data = await response.json();
+    console.log('Comparison data received:', data);
     
     if (!data.success) {
       showToast(data.message || 'Comparison failed', 'error');
@@ -1524,12 +1587,23 @@ async function executeComparison() {
     }
     
     displaySideBySideComparison(data.school1, data.school2);
-    cancelComparison(); // Exit comparison mode
-    showToast('Comparison loaded', 'success');
+    showToast('Comparison loaded successfully', 'success');
+    
+    // Don't cancel comparison mode - let user compare more schools
+    // Clear selections for next comparison
+    comparisonMode.school1 = null;
+    comparisonMode.school2 = null;
+    updateComparisonSlot(1, null);
+    updateComparisonSlot(2, null);
     
   } catch (error) {
     console.error('Comparison error:', error);
-    showToast('Failed to compare schools', 'error');
+    showToast('Failed to compare schools: ' + error.message, 'error');
+    
+    // Check if it's a network error
+    if (error.message.includes('Failed to fetch') || error.message.includes('ERR_CONNECTION_REFUSED')) {
+      showToast('Server connection failed. Please check if the server is running.', 'error');
+    }
   }
 }
 
