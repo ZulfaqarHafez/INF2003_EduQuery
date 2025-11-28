@@ -1009,6 +1009,11 @@ window.runQuery = async function () {
     renderTable(data, queryType);
     updateResultsMeta(data.length, school);
 
+    // **RE-ATTACH COMPARISON LISTENERS IF COMPARISON MODE IS ACTIVE**
+    if (comparisonMode.active) {
+      addComparisonClickListeners();
+    }
+
     // Show appropriate toast
     if (data.length === 0) {
       showToast('No results found', 'info');
@@ -1164,8 +1169,8 @@ function renderTable(data, queryType) {
       html += '</tr>';
     } else {
       // Make the row clickable for non-"all" searches
-      html += `<tr data-clickable="true" onclick='viewItemDetails("schools", "${row.school_id}")' style="cursor: pointer;">`;
-
+      html += `<tr data-clickable="true" data-school-id="${row.school_id}" onclick='viewItemDetails("schools", "${row.school_id}")' style="cursor: pointer;">`;
+      
       if (queryType === 'subjects') {
         html += `<td><strong>${row.school_name || '-'}</strong></td>`;
         html += `<td><span class="badge">${row.zone_code || '-'}</span></td>`;
@@ -1175,8 +1180,11 @@ function renderTable(data, queryType) {
         html += `<td><strong>${row.school_name || '-'}</strong></td>`;
         html += `<td><span class="badge">${row.zone_code || '-'}</span></td>`;
         html += `<td>${row.mainlevel_code || '-'}</td>`;
-        html += `<td>${row.cca_generic_name || '-'}</td>`;
-      } else if (queryType === 'programmes') {
+        html += `<td>
+          <strong>${row.cca_category || '-'}</strong>
+          ${row.cca_name ? `<span style="color: var(--gray-500); font-size: 13px; margin-left: 8px;">(${row.cca_name})</span>` : ''}
+        </td>`;
+      }else if (queryType === 'programmes') {
         html += `<td><strong>${row.school_name || '-'}</strong></td>`;
         html += `<td><span class="badge">${row.zone_code || '-'}</span></td>`;
         html += `<td>${row.mainlevel_code || '-'}</td>`;
@@ -1301,6 +1309,11 @@ function renderUniversalSearchResults(results, query) {
 
   html += '</div>';
   container.innerHTML = html;
+
+  // **RE-ATTACH COMPARISON LISTENERS IF COMPARISON MODE IS ACTIVE**
+  if (comparisonMode.active) {
+    addComparisonClickListeners();
+  }
 }
 
 // ========== Render Category ==========
@@ -1360,25 +1373,44 @@ function renderResultItem(type, item, query) {
     console.warn('No valid ID for item:', item);
     return '';
   }
-
-  let html = `<div class="result-item" onclick='viewItemDetails("schools", ${itemId})'>`;
+  
+  let html = `<div class="result-item" data-school-id="${itemId}" onclick='viewItemDetails("schools", ${itemId})'>`;
   html += '<div class="result-item-header">';
 
   // Title with highlighted search term
   const name = item.name || item.school_name || item.subject_desc || item.cca_generic_name || item.moe_programme_desc || 'Unnamed';
+
+  // Also update the description for CCAs in universal search
+  if (item.description && type === 'ccas') {
+    // For CCAs, show the actual CCA name, not the grouping
+    const ccaName = item.cca_generic_name || item.description;
+    const highlightedName = highlightSearchTerm(ccaName, query);
+    html += `<div class="result-item-title">${highlightedName}</div>`;
+  } else {
+    const highlightedName = highlightSearchTerm(name, query);
+    html += `<div class="result-item-title">${highlightedName}</div>`;
+  }
+    
   const highlightedName = highlightSearchTerm(name, query);
   html += `<div class="result-item-title">${highlightedName}</div>`;
 
   html += '</div>';
-
-  // Description
-  if (item.description) {
-    const truncatedDesc = item.description.length > 150 
-      ? item.description.substring(0, 150) + '...'
-      : item.description;
-    html += `<div class="result-item-description">${truncatedDesc}</div>`;
-  }
-
+  
+    // Description
+    if (item.description) {
+      let descText = item.description;
+      
+      // For CCAs, show both category and name
+      if (type === 'ccas' && item.cca_category) {
+        descText = `${item.cca_category} - ${item.description}`;
+      }
+      
+      const truncatedDesc = descText.length > 150 
+        ? descText.substring(0, 150) + '...'
+        : descText;
+      html += `<div class="result-item-description">${truncatedDesc}</div>`;
+    }
+  
   // Meta tags
   html += '<div class="result-item-meta">';
 
@@ -1429,18 +1461,51 @@ window.viewItemDetails = async function(type, id) {
         showToast('Invalid item ID', 'error');
         return;
     }
-
+    
+    // **CHECK FOR COMPARISON MODE FIRST**
+    if (comparisonMode.active && type === 'schools') {
+        // Try to get school name from multiple possible locations
+        let schoolName = 'Unknown School';
+        
+        // Try 1: Find by data-school-id attribute
+        let element = document.querySelector(`[data-school-id="${id}"]`);
+        
+        if (element) {
+            // Universal search result item
+            const titleElement = element.querySelector('.result-item-title');
+            if (titleElement) {
+                schoolName = titleElement.textContent.trim();
+            } 
+            // Table row
+            else {
+                const strongElement = element.querySelector('td strong');
+                if (strongElement) {
+                    schoolName = strongElement.textContent.trim();
+                } else {
+                    const firstCell = element.querySelector('td:first-child');
+                    if (firstCell) {
+                        schoolName = firstCell.textContent.trim();
+                    }
+                }
+            }
+        }
+        
+        console.log('Extracted school name:', schoolName, 'for ID:', id);
+        
+        const handled = window.handleComparisonClick(id, schoolName);
+        if (handled) return; // Stop here if comparison mode handled it
+    }
+    
+    // Normal detail view behavior
     showToast('Loading details...', 'info');
 
     try {
         if (type === 'schools') {
-            // Load comprehensive school data
             const fullData = await loadFullSchoolDetails(id);
             if (fullData) {
                 displayEnhancedSchoolModal(fullData);
             }
         } else {
-            // Original logic for non-school items
             let response = await fetch(`/api/search/details/${type}/${id}`);
             const data = await response.json();
 
@@ -1997,14 +2062,15 @@ window.startComparisonMode = function() {
   comparisonMode.school2 = null;
   
   showComparisonNotification();
-  
-  // Add click listeners to all school rows in results
-  addComparisonClickListeners();
-  
+  // addComparisonClickListeners();
   showToast('Click on two schools to compare', 'info');
 };
 
 function showComparisonNotification() {
+  // Remove existing notification if any
+  const existing = document.getElementById('comparisonNotification');
+  if (existing) existing.remove();
+  
   const html = `
     <div id="comparisonNotification" class="comparison-notification">
       <div class="comparison-notification-content">
@@ -2013,20 +2079,20 @@ function showComparisonNotification() {
             <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z"/>
             <path fill-rule="evenodd" d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5z"/>
           </svg>
-          <span>Comparison Mode</span>
+          <span>Comparison Mode Active</span>
         </div>
         <div class="comparison-notification-body">
           <div class="comparison-school-slot" id="comparisonSlot1">
             <div class="slot-number">1</div>
-            <div class="slot-text">Click a school</div>
+            <div class="slot-text">Select first school</div>
           </div>
           <div class="comparison-school-slot" id="comparisonSlot2">
             <div class="slot-number">2</div>
-            <div class="slot-text">Click a school</div>
+            <div class="slot-text">Select second school</div>
           </div>
         </div>
         <button class="btn-danger" onclick="cancelComparison()">
-          Cancel Comparison
+          Exit Comparison Mode
         </button>
       </div>
     </div>
@@ -2035,38 +2101,37 @@ function showComparisonNotification() {
   document.body.insertAdjacentHTML('beforeend', html);
 }
 
-function addComparisonClickListeners() {
-  // Add to all existing school rows
-  document.querySelectorAll('.data-table tbody tr').forEach(row => {
-    const schoolId = extractSchoolIdFromRow(row);
-    if (schoolId) {
-      row.style.cursor = 'pointer';
-      row.classList.add('comparison-selectable');
-      row.onclick = (e) => {
-        // Don't trigger if clicking action buttons
-        if (e.target.closest('button')) return;
-        selectSchoolForComparison(row, schoolId);
-      };
-    }
-  });
-  
-  // Add to clickable result items
-  document.querySelectorAll('.result-item').forEach(item => {
-    const schoolId = item.getAttribute('onclick')?.match(/viewItemDetails\("schools", (\d+)\)/)?.[1];
-    if (schoolId) {
-      item.classList.add('comparison-selectable');
-      const originalOnclick = item.onclick;
-      item.onclick = (e) => {
-        if (comparisonMode.active) {
-          e.stopPropagation();
-          selectSchoolForComparison(item, schoolId);
-        } else if (originalOnclick) {
-          originalOnclick.call(item, e);
-        }
-      };
-    }
-  });
-}
+// function addComparisonClickListeners() {
+//   // Add to all existing school rows
+//   document.querySelectorAll('.data-table tbody tr').forEach(row => {
+//     const schoolId = extractSchoolIdFromRow(row);
+//     if (schoolId) {
+//       row.style.cursor = 'pointer';
+//       row.classList.add('comparison-selectable');
+//       row.onclick = (e) => {
+//         // Don't trigger if clicking action buttons
+//         if (e.target.closest('button')) return;
+//         selectSchoolForComparison(row, schoolId);
+//       };
+//     }
+//   });
+//   // Add to clickable result items
+//   document.querySelectorAll('.result-item').forEach(item => {
+//     const schoolId = item.getAttribute('onclick')?.match(/viewItemDetails\("schools", (\d+)\)/)?.[1];
+//     if (schoolId) {
+//       item.classList.add('comparison-selectable');
+//       const originalOnclick = item.onclick;
+//       item.onclick = (e) => {
+//         if (comparisonMode.active) {
+//           e.stopPropagation();
+//           selectSchoolForComparison(item, schoolId);
+//         } else if (originalOnclick) {
+//           originalOnclick.call(item, e);
+//         }
+//       };
+//     }
+//   });
+// }
 
 function extractSchoolIdFromRow(row) {
   // Try to find school_id from the first cell (school_id column)
@@ -2162,20 +2227,44 @@ function updateComparisonSlot(slotNumber, schoolName) {
   }
 }
 
+window.handleComparisonClick = function(schoolId, schoolName) {
+  if (!comparisonMode.active) return false;
+  
+  console.log('Comparison click:', schoolId, schoolName);
+  
+  // If this school is already selected, deselect it
+  if (comparisonMode.school1?.id === String(schoolId)) {
+    comparisonMode.school1 = null;
+    updateComparisonSlot(1, null);
+    return true;
+  }
+  if (comparisonMode.school2?.id === String(schoolId)) {
+    comparisonMode.school2 = null;
+    updateComparisonSlot(2, null);
+    return true;
+  }
+  
+  // Add to first empty slot
+  if (!comparisonMode.school1) {
+    comparisonMode.school1 = { id: String(schoolId), name: schoolName };
+    updateComparisonSlot(1, schoolName);
+    showToast(`School 1: ${schoolName}`, 'success');
+    return true;
+  } else if (!comparisonMode.school2) {
+    comparisonMode.school2 = { id: String(schoolId), name: schoolName };
+    updateComparisonSlot(2, schoolName);
+    showToast(`School 2: ${schoolName}`, 'success');
+    
+    // Both schools selected, execute comparison
+    setTimeout(() => executeComparison(), 500);
+    return true;
+  }
+  
+  return true;
+};
+
 window.cancelComparison = function() {
   comparisonMode.active = false;
-  
-  // Remove visual indicators
-  document.querySelectorAll('.comparison-selected-1, .comparison-selected-2').forEach(el => {
-    el.classList.remove('comparison-selected-1', 'comparison-selected-2');
-  });
-  
-  document.querySelectorAll('.comparison-selectable').forEach(el => {
-    el.classList.remove('comparison-selectable');
-    if (el.tagName === 'TR') {
-      el.style.cursor = '';
-    }
-  });
   
   // Remove notification
   const notification = document.getElementById('comparisonNotification');
@@ -2193,6 +2282,7 @@ async function executeComparison() {
     return;
   }
   
+  console.log('Executing comparison:', comparisonMode.school1, comparisonMode.school2);
   showToast('Loading comparison...', 'info');
   
   try {
@@ -2205,7 +2295,12 @@ async function executeComparison() {
       })
     });
     
+    if (!response.ok) {
+      throw new Error(`Server responded with status ${response.status}`);
+    }
+    
     const data = await response.json();
+    console.log('Comparison data received:', data);
     
     if (!data.success) {
       showToast(data.message || 'Comparison failed', 'error');
@@ -2213,12 +2308,23 @@ async function executeComparison() {
     }
     
     displaySideBySideComparison(data.school1, data.school2);
-    cancelComparison(); // Exit comparison mode
-    showToast('Comparison loaded', 'success');
+    showToast('Comparison loaded successfully', 'success');
+    
+    // Don't cancel comparison mode - let user compare more schools
+    // Clear selections for next comparison
+    comparisonMode.school1 = null;
+    comparisonMode.school2 = null;
+    updateComparisonSlot(1, null);
+    updateComparisonSlot(2, null);
     
   } catch (error) {
     console.error('Comparison error:', error);
-    showToast('Failed to compare schools', 'error');
+    showToast('Failed to compare schools: ' + error.message, 'error');
+    
+    // Check if it's a network error
+    if (error.message.includes('Failed to fetch') || error.message.includes('ERR_CONNECTION_REFUSED')) {
+      showToast('Server connection failed. Please check if the server is running.', 'error');
+    }
   }
 }
 
@@ -2245,7 +2351,7 @@ function displaySideBySideComparison(school1, school2) {
 function renderSchoolComparisonPanel(school, otherSchool, panelNum) {
   // Find unique items
   const uniqueSubjects = school.subjects.filter(s => !otherSchool.subjects.includes(s));
-  const uniqueCCAs = school.ccas.filter(c => !otherSchool.ccas.some(oc => oc.cca_generic_name === c.cca_generic_name));
+  const uniqueCCAs = school.ccas.filter(c => !otherSchool.ccas.some(oc => oc.cca_grouping_desc === c.cca_grouping_desc));
   const uniqueProgs = school.programmes.filter(p => !otherSchool.programmes.includes(p));
   
   return `
@@ -2341,8 +2447,8 @@ function renderCCAsSection(ccas, uniqueCCAs) {
       <h4>CCAs (${ccas.length})</h4>
       <div class="badge-list">
         ${ccas.map(c => {
-          const isUnique = uniqueCCAs.some(uc => uc.cca_generic_name === c.cca_generic_name);
-          return `<span class="badge ${isUnique ? 'badge-unique' : ''}">${c.cca_generic_name}</span>`;
+          const isUnique = uniqueCCAs.some(uc => uc.cca_grouping_desc === c.cca_grouping_desc);
+          return `<span class="badge ${isUnique ? 'badge-unique' : ''}">${c.cca_grouping_desc}</span>`;
         }).join('')}
       </div>
     </div>
@@ -2520,29 +2626,27 @@ function displayDistanceResults(results, params) {
     return;
   }
   
-  let html = '<table class="data-table"><thead><tr>';
+  let html = '<div style="overflow-x: auto;"><table class="data-table"><thead><tr>';
   html += '<th>Distance (km)</th>';
   html += '<th>School Name</th>';
   html += '<th>Zone</th>';
   html += '<th>Level</th>';
   html += '<th>Address</th>';
   html += '<th>Postal Code</th>';
-  html += '<th>Actions</th>';
   html += '</tr></thead><tbody>';
   
   results.forEach(school => {
-    html += `<tr>`;
+    html += `<tr data-clickable="true" onclick='viewItemDetails("schools", ${school.school_id})' style="cursor: pointer;">`;
     html += `<td><span class="badge" style="background: #DBEAFE; color: #1E40AF; font-weight: 700;">${school.distance_km} km</span></td>`;
     html += `<td><strong>${school.school_name}</strong></td>`;
     html += `<td><span class="badge zone-${school.zone_code.toLowerCase()}">${school.zone_code}</span></td>`;
     html += `<td>${school.mainlevel_code}</td>`;
     html += `<td>${school.address}</td>`;
     html += `<td>${school.postal_code}</td>`;
-    html += `<td><button class="btn-primary" style="padding: 6px 12px; font-size: 13px;" onclick='viewItemDetails("schools", ${school.school_id})'>View</button></td>`;
     html += `</tr>`;
   });
   
-  html += '</tbody></table>';
+  html += '</tbody></table></div>';
   resultsTable.innerHTML = html;
 }
 
@@ -2717,11 +2821,11 @@ function renderSubjectsList(subjects) {
  */
 function renderCCAsList(ccas) {
     if (!ccas || ccas.length === 0) return '';
-
-    // Group CCAs by cca_grouping_desc
+    
+    // Group CCAs by cca_generic_name (the category)
     const groupedCCAs = {};
     ccas.forEach(cca => {
-        const group = cca.cca_grouping_desc || 'Other';
+        const group = cca.cca_generic_name || 'Other';
         if (!groupedCCAs[group]) groupedCCAs[group] = [];
         groupedCCAs[group].push(cca);
     });
@@ -2736,8 +2840,8 @@ function renderCCAsList(ccas) {
                 <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 0.75rem;">
                     ${groupedCCAs[group].map(cca => `
                         <div style="padding: 0.875rem; background: #F0FDF4; border-left: 3px solid #10B981; border-radius: 0.375rem;">
-                            <strong style="color: #065F46; font-size: 0.9rem;">${cca.cca_generic_name}</strong>
-                            ${cca.cca_customized_name && cca.cca_customized_name !== cca.cca_generic_name ? 
+                            <strong style="color: #065F46; font-size: 0.9rem;">${cca.cca_grouping_desc}</strong>
+                            ${cca.cca_customized_name && cca.cca_customized_name !== cca.cca_grouping_desc ? 
                                 `<div style="color: #6B7280; font-size: 0.8rem; margin-top: 0.25rem;">${cca.cca_customized_name}</div>` : ''}
                             ${cca.school_section ? 
                                 `<span class="badge" style="font-size: 0.7rem; margin-top: 0.5rem; background: #D1FAE5; color: #065F46; padding: 0.125rem 0.5rem;">${cca.school_section}</span>` : ''}
