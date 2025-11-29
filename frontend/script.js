@@ -134,15 +134,15 @@ function updateUIForUserRole() {
 
   // Show/hide Manage and Analytics navigation buttons for admin only
   const manageNav = document.querySelector('[data-view="manage"]');
-  const analyticsNav = document.querySelector('[data-view="analytics"]');
+  // const analyticsNav = document.querySelector('[data-view="analytics"]');
 
   if (manageNav) {
     manageNav.style.display = isAdmin ? 'flex' : 'none';
   }
 
-  if (analyticsNav) {
-    analyticsNav.style.display = isAdmin ? 'flex' : 'none';
-  }
+  // if (analyticsNav) {
+  //   analyticsNav.style.display = isAdmin ? 'flex' : 'none';
+  // }
 
   // Update admin auth link
   updateAdminAuthLink();
@@ -689,11 +689,11 @@ window.adminLogout = function () {
 window.switchView = function (viewName) {
   console.log('Switching to view:', viewName);
 
-  // Check if trying to access analytics without admin rights
-  if (viewName === 'analytics' && !isUserAdmin()) {
-    showToast('Analytics features are available to administrators only', 'error');
-    return;
-  }
+  // // Check if trying to access analytics without admin rights
+  // if (viewName === 'analytics' && !isUserAdmin()) {
+  //   showToast('Analytics features are available to administrators only', 'error');
+  //   return;
+  // }
 
   const views = document.querySelectorAll('.view');
   const navBtns = document.querySelectorAll('.nav-btn');
@@ -759,10 +759,10 @@ window.switchView = function (viewName) {
 
 // ========== Analytics Functions (Admin Only) ==========
 function loadAnalyticsData() {
-  if (!isUserAdmin()) {
-    showToast('Analytics features are available to administrators only', 'error');
-    return;
-  }
+  // if (!isUserAdmin()) {
+  //   showToast('Analytics features are available to administrators only', 'error');
+  //   return;
+  // }
 
   console.log('Loading analytics data...');
 
@@ -1101,7 +1101,7 @@ function renderTable(data, queryType) {
 
     // Add actions column only if user is admin
     if (isUserAdmin()) {
-      html += '<th>Actions</th>';
+      // html += '<th>Actions</th>';
     }
   } else if (queryType === 'subjects') {
     html += '<th>School Name</th>';
@@ -1151,37 +1151,38 @@ function renderTable(data, queryType) {
         html += `<td>${value}</td>`;
       });
 
-      // Add action buttons for schools (admin only)
-      if (row.school_id && isUserAdmin()) {
-        const safeSchoolJson = JSON.stringify(row).replace(/"/g, '&quot;');
-        const safeSchoolName = String(row.school_name || '').replace(/'/g, "\\'");
+      // // Add action buttons for schools (admin only)
+      // if (row.school_id && isUserAdmin()) {
+      //   const safeSchoolJson = JSON.stringify(row).replace(/"/g, '&quot;');
+      //   const safeSchoolName = String(row.school_name || '').replace(/'/g, "\\'");
 
-        html += `
-          <td>
-            <div class="action-buttons">
-              <button class="btn-edit"
-                      onclick="event.stopPropagation(); editSchool(${safeSchoolJson})">
-                <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
-                  <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z"/>
-                </svg>
-                Edit
-              </button>
-              <button class="btn-danger"
-                      onclick="event.stopPropagation(); deleteSchool(${row.school_id}, '${safeSchoolName}')">
-                <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
-                  <path fill-rule="evenodd"
-                        d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z"
-                        clip-rule="evenodd"/>
-                </svg>
-                Delete
-              </button>
-            </div>
-          </td>
-        `;
-      } else if (row.school_id) {
-        // For non-admin users, add empty actions cell to maintain table structure
-        html += '<td></td>';
-      }
+      //   html += `
+      //     <td>
+      //       <div class="action-buttons">
+      //         <button class="btn-edit"
+      //                 onclick="event.stopPropagation(); editSchool(${safeSchoolJson})">
+      //           <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
+      //             <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z"/>
+      //           </svg>
+      //           Edit
+      //         </button>
+      //         <button class="btn-danger"
+      //                 onclick="event.stopPropagation(); deleteSchool(${row.school_id}, '${safeSchoolName}')">
+      //           <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
+      //             <path fill-rule="evenodd"
+      //                   d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z"
+      //                   clip-rule="evenodd"/>
+      //           </svg>
+      //           Delete
+      //         </button>
+      //       </div>
+      //     </td>
+      //   `;
+      // } 
+      // else if (row.school_id) {
+      //   // For non-admin users, add empty actions cell to maintain table structure
+      //   html += '<td></td>';
+      // }
       html += '</tr>';
     } else {
       // Make the row clickable for non-"all" searches
@@ -1797,7 +1798,6 @@ window.hideDeleteModal = function () {
 window.addSchool = async function (event) {
   event.preventDefault();
 
-  // Check if user is admin
   if (!isUserAdmin()) {
     showToast('Admin privileges required to add schools', 'error');
     return;
@@ -1836,7 +1836,6 @@ window.addSchool = async function (event) {
       hideAddModal();
       loadSchoolStats();
 
-      // If user is on search view with results, refresh
       const searchBox = document.getElementById('searchBox');
       if (searchBox.value.trim()) {
         setTimeout(() => runQuery(), 500);
@@ -1847,6 +1846,19 @@ window.addSchool = async function (event) {
   } catch (err) {
     console.error('Add school error:', err);
     showToast('Error: ' + err.message, 'error');
+  }
+};
+
+window.toggleAdditionalInfo = function() {
+  const section = document.getElementById('additionalInfoSection');
+  const icon = document.getElementById('additionalInfoIcon');
+  
+  if (section.style.display === 'none') {
+    section.style.display = 'block';
+    icon.style.transform = 'rotate(180deg)';
+  } else {
+    section.style.display = 'none';
+    icon.style.transform = 'rotate(0deg)';
   }
 };
 
@@ -3216,6 +3228,99 @@ function showToast(message, type = 'info') {
   }, 3000);
 }
 
+window.showRecentSchools = async function() {
+  if (!isUserAdmin()) {
+    showToast('Admin access required', 'error');
+    return;
+  }
+  
+  showToast('Loading recent schools...', 'info');
+  
+  try {
+    const response = await fetch('/api/schools/recent', {
+      headers: getAuthHeaders()
+    });
+    
+    const data = await response.json();
+    
+    if (!data.success || !data.schools || data.schools.length === 0) {
+      showToast('No recent schools found', 'info');
+      return;
+    }
+    
+    displayRecentSchoolsModal(data.schools);
+    
+  } catch (error) {
+    console.error('Failed to load recent schools:', error);
+    showToast('Failed to load recent schools', 'error');
+  }
+};
+
+function displayRecentSchoolsModal(schools) {
+  let html = `
+    <div class="modal active" id="recentSchoolsModal">
+      <div class="modal-overlay" onclick="closeRecentSchoolsModal()"></div>
+      <div class="modal-content" style="max-width: 800px;">
+        <div class="modal-header">
+          <h3>Recent Additions (Last ${schools.length})</h3>
+          <button class="modal-close" onclick="closeRecentSchoolsModal()">×</button>
+        </div>
+        <div class="modal-body" style="padding: 1.5rem; max-height: 60vh; overflow-y: auto;">
+          <div style="display: flex; flex-direction: column; gap: 1rem;">
+  `;
+  
+  schools.forEach(school => {
+    html += `
+      <div class="recent-school-item" 
+           onclick="viewItemDetails('schools', ${school.school_id}); closeRecentSchoolsModal();"
+           style="padding: 1rem; border: 1px solid #E5E7EB; border-radius: 0.5rem; cursor: pointer; transition: all 0.2s;">
+        <div style="display: flex; justify-content: space-between; align-items: start;">
+          <div>
+            <h4 style="margin: 0 0 0.5rem 0; color: #1F2937;">${school.school_name}</h4>
+            <p style="margin: 0; color: #6B7280; font-size: 0.875rem;">${school.address}</p>
+            <div style="margin-top: 0.5rem; display: flex; gap: 0.5rem;">
+              <span class="badge zone-${school.zone_code?.toLowerCase()}">${school.zone_code}</span>
+              <span class="badge">${school.mainlevel_code}</span>
+            </div>
+          </div>
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor" style="color: #9CA3AF;">
+            <path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z"/>
+          </svg>
+        </div>
+      </div>
+    `;
+  });
+  
+  html += `
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+  
+  document.body.insertAdjacentHTML('beforeend', html);
+  document.body.style.overflow = 'hidden';
+  
+  // Add hover effect
+  document.querySelectorAll('.recent-school-item').forEach(item => {
+    item.addEventListener('mouseenter', function() {
+      this.style.backgroundColor = '#F9FAFB';
+      this.style.borderColor = '#3B82F6';
+    });
+    item.addEventListener('mouseleave', function() {
+      this.style.backgroundColor = '';
+      this.style.borderColor = '#E5E7EB';
+    });
+  });
+}
+
+window.closeRecentSchoolsModal = function() {
+  const modal = document.getElementById('recentSchoolsModal');
+  if (modal) {
+    modal.remove();
+    document.body.style.overflow = 'auto';
+  }
+};
 
 // ========== Utility Functions (GLOBAL) ==========
 window.showAbout = function () {

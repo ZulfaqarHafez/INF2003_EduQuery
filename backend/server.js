@@ -3443,6 +3443,32 @@ app.get('/api/analytics/logs', requireAuth, requireAdmin, async (req, res) => {
   }
 });
 
+// Get recently added schools (last 10)
+app.get('/api/schools/recent', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const query = `
+      SELECT school_id, school_name, address, postal_code, zone_code, 
+             mainlevel_code, principal_name
+      FROM Schools
+      ORDER BY school_id DESC
+      LIMIT 10
+    `;
+    
+    const result = await pool.query(query);
+    
+    res.json({
+      success: true,
+      schools: result.rows
+    });
+  } catch (err) {
+    console.error('Recent schools error:', err);
+    res.status(500).json({ 
+      success: false, 
+      error: err.message 
+    });
+  }
+});
+
 // Get popular searches (Admin only)
 app.get('/api/analytics/popular', requireAuth, requireAdmin, async (req, res) => {
   try {

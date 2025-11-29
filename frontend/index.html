@@ -240,7 +240,7 @@
               </div>
             </div>
 
-            <div class="stat-card">
+            <div class="stat-card" onclick="showRecentSchools()" style="cursor: pointer;">
               <div class="stat-icon" style="background: #DCFCE7;">
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="#16A34A">
                   <path
@@ -566,6 +566,12 @@
 
       <form id="addSchoolForm" onsubmit="addSchool(event)">
         <div class="form-grid">
+          <!-- MAIN INFORMATION -->
+          <h4
+            style="grid-column: 1 / -1; margin: 0 0 1rem 0; color: #1F2937; border-bottom: 2px solid #3B82F6; padding-bottom: 0.5rem;">
+            Main Information (Required)
+          </h4>
+
           <div class="form-group">
             <label for="schoolName">School Name *</label>
             <input type="text" id="schoolName" required placeholder="e.g., Anderson Secondary School">
@@ -608,6 +614,58 @@
               <option value="JUNIOR COLLEGE">Junior College</option>
               <option value="CENTRALISED INSTITUTE">Centralised Institute</option>
             </select>
+          </div>
+
+          <!-- ADDITIONAL INFORMATION (EXPANDABLE) -->
+          <div class="form-group full-width" style="margin-top: 1.5rem;">
+            <button type="button" class="btn-secondary" onclick="toggleAdditionalInfo()"
+              style="width: 100%; display: flex; align-items: center; justify-content: space-between;">
+              <span>Additional Information (Optional)</span>
+              <svg id="additionalInfoIcon" width="20" height="20" viewBox="0 0 20 20" fill="currentColor"
+                style="transition: transform 0.3s;">
+                <path fill-rule="evenodd"
+                  d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" />
+              </svg>
+            </button>
+          </div>
+
+          <div id="additionalInfoSection" style="display: none; grid-column: 1 / -1;">
+            <div class="form-grid">
+              <div class="form-group">
+                <label for="emailAddress">Email Address</label>
+                <input type="email" id="emailAddress" placeholder="e.g., school@moe.edu.sg">
+              </div>
+
+              <div class="form-group">
+                <label for="telephoneNo">Telephone Number</label>
+                <input type="text" id="telephoneNo" placeholder="e.g., 6XXXXXXX">
+              </div>
+
+              <div class="form-group">
+                <label for="typeCode">School Type</label>
+                <input type="text" id="typeCode" placeholder="e.g., GOVERNMENT">
+              </div>
+
+              <div class="form-group">
+                <label for="natureCode">Nature Code</label>
+                <input type="text" id="natureCode" placeholder="e.g., CO-ED">
+              </div>
+
+              <div class="form-group">
+                <label for="sessionCode">Session Code</label>
+                <input type="text" id="sessionCode" placeholder="e.g., AM/PM">
+              </div>
+
+              <div class="form-group">
+                <label for="mrtDesc">Nearest MRT</label>
+                <input type="text" id="mrtDesc" placeholder="e.g., Ang Mo Kio">
+              </div>
+
+              <div class="form-group full-width">
+                <label for="busDesc">Bus Services</label>
+                <input type="text" id="busDesc" placeholder="e.g., 123, 456, 789">
+              </div>
+            </div>
           </div>
         </div>
 
