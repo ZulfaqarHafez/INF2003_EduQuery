@@ -1728,29 +1728,39 @@ window.hideAddModal = function () {
 
 // Edit Modal Management
 window.showEditModal = function (school) {
-  // Check if user is admin
   if (!isUserAdmin()) {
     showToast('Admin privileges required to edit schools', 'error');
     return;
   }
 
-  console.log('Opening edit modal for school:', school);
   const modal = document.getElementById('editModal');
-  if (modal) {
-    // Populate the form with school data
-    document.getElementById('editSchoolId').value = school.school_id;
-    document.getElementById('editSchoolName').value = school.school_name;
-    document.getElementById('editAddress').value = school.address;
-    document.getElementById('editPostalCode').value = school.postal_code;
-    document.getElementById('editZoneCode').value = school.zone_code;
-    document.getElementById('editMainlevelCode').value = school.mainlevel_code;
-    document.getElementById('editPrincipalName').value = school.principal_name;
-
-    modal.classList.add('active');
-    document.body.style.overflow = 'hidden';
-  } else {
+  if (!modal) {
     console.error('Edit modal not found');
+    return;
   }
+
+  // Basic info
+  document.getElementById('editSchoolId').value        = school.school_id || '';
+  document.getElementById('editSchoolName').value      = school.school_name || '';
+  document.getElementById('editPrincipalName').value   = school.principal_name || '';
+  document.getElementById('editAddress').value         = school.address || '';
+  document.getElementById('editPostalCode').value      = school.postal_code || '';
+  document.getElementById('editZoneCode').value        = school.zone_code || '';
+  document.getElementById('editMainlevelCode').value   = school.mainlevel_code || '';
+
+  // Additional info
+  document.getElementById('editEmailAddress').value    = school.email_address || '';
+  document.getElementById('editTelephoneNo').value     = school.telephone_no || '';
+  document.getElementById('editTypeCode').value        = school.type_code || '';
+  document.getElementById('editNatureCode').value      = school.nature_code || '';
+  document.getElementById('editSessionCode').value     = school.session_code || '';
+  document.getElementById('editMrtDesc').value         = school.mrt_desc || '';
+  document.getElementById('editBusDesc').value         = school.bus_desc || '';
+
+  // Show modal – **only via class**, no inline display
+  modal.style.display = '';           // clear any previous inline styles
+  modal.classList.add('active');
+  document.body.style.overflow = 'hidden';
 };
 
 window.hideEditModal = function () {
@@ -1758,7 +1768,7 @@ window.hideEditModal = function () {
   const modal = document.getElementById('editModal');
   if (modal) {
     modal.classList.remove('active');
-    document.getElementById('editSchoolForm').reset();
+    modal.style.display = 'none';   // ⛔ this line breaks the next open
     document.body.style.overflow = 'auto';
   }
 };
@@ -2040,40 +2050,101 @@ async function loadFullSchoolDetails(schoolId) {
 /**
  * Display enhanced school modal with comprehensive information
  */
+/**
+ * Display enhanced school modal with comprehensive information
+ */
 function displayEnhancedSchoolModal(data) {
   const { school, subjects, ccas, programmes, distinctives } = data;
 
+  // Remove any existing details modal first
+  const existing = document.getElementById('detailsModal');
+  if (existing) existing.remove();
+
+  const isAdmin = typeof isUserAdmin === 'function' && isUserAdmin();
+
   let html = `
-        <div class="modal active" id="detailsModal">
-            <div class="modal-overlay" onclick="closeDetailsModal()"></div>
-            <div class="modal-content" style="max-width: 1000px; max-height: 90vh; overflow-y: auto;">
-                <div class="modal-header">
-                    <h3>${school.school_name || 'School Details'}</h3>
-                    <button class="modal-close" onclick="closeDetailsModal()">
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
-                            <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
-                        </svg>
-                    </button>
-                </div>
-                
-                <div class="detail-modal-content" style="padding: 1.5rem;">
-                    ${renderBasicInfo(school)}
-                    ${renderContactInfo(school)}
-                    ${renderPersonnel(school)}
-                    ${renderSpecialProgrammes(school)}
-                    ${renderMotherTongue(school)}
-                    ${renderTransport(school)}
-                    ${renderSubjectsList(subjects)}
-                    ${renderCCAsList(ccas)}
-                    ${renderProgrammesList(programmes)}
-                    ${renderDistinctivesList(distinctives)}
-                </div>
-            </div>
+    <div class="modal active" id="detailsModal">
+      <div class="modal-overlay" onclick="closeDetailsModal()"></div>
+      <div class="modal-content" style="max-width: 1000px; max-height: 90vh; overflow-y: auto;">
+        <div class="modal-header" style="align-items: center; gap: 0.75rem;">
+          <h3 style="flex: 1;">${school.school_name || 'School Details'}</h3>
+
+          ${isAdmin ? `
+          <div style="display: flex; gap: 0.5rem; margin-right: 0.5rem;">
+            <button 
+              type="button" 
+              class="btn-primary" 
+              style="display:flex; align-items:center; gap:0.35rem; padding:0.4rem 0.75rem; font-size:0.85rem;"
+              data-action="edit-school"
+            >
+              ✏️ Edit
+            </button>
+            <button 
+              type="button" 
+              class="btn-danger" 
+              style="display:flex; align-items:center; gap:0.35rem; padding:0.4rem 0.75rem; font-size:0.85rem;"
+              data-action="delete-school"
+            >
+              🗑 Delete
+            </button>
+          </div>
+          ` : ''}
+
+          <button class="modal-close" onclick="closeDetailsModal()">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+            </svg>
+          </button>
         </div>
-    `;
+        
+        <div class="detail-modal-content" style="padding: 1.5rem;">
+          ${renderBasicInfo(school)}
+          ${renderContactInfo(school)}
+          ${renderPersonnel(school)}
+          ${renderSpecialProgrammes(school)}
+          ${renderMotherTongue(school)}
+          ${renderTransport(school)}
+          ${renderSubjectsList(subjects)}
+          ${renderCCAsList(ccas)}
+          ${renderProgrammesList(programmes)}
+          ${renderDistinctivesList(distinctives)}
+        </div>
+      </div>
+    </div>
+  `;
 
   document.body.insertAdjacentHTML('beforeend', html);
   document.body.style.overflow = 'hidden';
+
+  // Wire up Edit/Delete buttons (admin only)
+  if (isAdmin) {
+    const modal = document.getElementById('detailsModal');
+    if (modal) {
+      const editBtn = modal.querySelector('[data-action="edit-school"]');
+      const deleteBtn = modal.querySelector('[data-action="delete-school"]');
+
+      if (editBtn) {
+        editBtn.addEventListener('click', () => {
+          // Close view card, then open edit modal
+          closeDetailsModal();
+          // Uses existing editSchool -> showEditModal flow
+          if (typeof editSchool === 'function') {
+            editSchool(school);
+          }
+        });
+      }
+
+      if (deleteBtn) {
+        deleteBtn.addEventListener('click', () => {
+          // Optionally close details modal first
+          closeDetailsModal();
+          if (typeof deleteSchool === 'function') {
+            deleteSchool(school.school_id, school.school_name || 'this school');
+          }
+        });
+      }
+    }
+  }
 }
 
 // ========== SCHOOL COMPARISON FUNCTIONS ==========
