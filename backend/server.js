@@ -3794,6 +3794,152 @@ app.put('/api/user/password', requireAuth, async (req, res) => {
   }
 });
 
+// ========== DROPDOWN VALUES ENDPOINTS ==========
+
+// Get distinct type codes
+app.get('/api/dropdown/types', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT DISTINCT type_code 
+      FROM raw_general_info 
+      WHERE type_code IS NOT NULL 
+        AND TRIM(type_code) != '' 
+        AND UPPER(type_code) NOT IN ('NA', 'N/A', 'NIL', 'NONE', '-')
+      ORDER BY type_code
+    `);
+    res.json({ success: true, data: result.rows.map(r => r.type_code) });
+  } catch (err) {
+    console.error('Error fetching type codes:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Get distinct nature codes
+app.get('/api/dropdown/natures', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT DISTINCT nature_code 
+      FROM raw_general_info 
+      WHERE nature_code IS NOT NULL 
+        AND TRIM(nature_code) != '' 
+        AND UPPER(nature_code) NOT IN ('NA', 'N/A', 'NIL', 'NONE', '-')
+      ORDER BY nature_code
+    `);
+    res.json({ success: true, data: result.rows.map(r => r.nature_code) });
+  } catch (err) {
+    console.error('Error fetching nature codes:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Get distinct session codes
+app.get('/api/dropdown/sessions', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT DISTINCT session_code 
+      FROM raw_general_info 
+      WHERE session_code IS NOT NULL 
+        AND TRIM(session_code) != '' 
+        AND UPPER(session_code) NOT IN ('NA', 'N/A', 'NIL', 'NONE', '-')
+      ORDER BY session_code
+    `);
+    res.json({ success: true, data: result.rows.map(r => r.session_code) });
+  } catch (err) {
+    console.error('Error fetching session codes:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Get distinct DGP codes
+app.get('/api/dropdown/dgp-codes', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT DISTINCT dgp_code 
+      FROM raw_general_info 
+      WHERE dgp_code IS NOT NULL 
+        AND TRIM(dgp_code) != '' 
+        AND UPPER(dgp_code) NOT IN ('NA', 'N/A', 'NIL', 'NONE', '-')
+      ORDER BY dgp_code
+    `);
+    res.json({ success: true, data: result.rows.map(r => r.dgp_code) });
+  } catch (err) {
+    console.error('Error fetching DGP codes:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Get distinct mother tongue languages
+app.get('/api/dropdown/mother-tongues', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT DISTINCT unnest(ARRAY[mothertongue1_code, mothertongue2_code, mothertongue3_code]) as mother_tongue
+      FROM raw_general_info 
+      WHERE unnest(ARRAY[mothertongue1_code, mothertongue2_code, mothertongue3_code]) IS NOT NULL 
+        AND TRIM(unnest(ARRAY[mothertongue1_code, mothertongue2_code, mothertongue3_code])) != '' 
+        AND UPPER(unnest(ARRAY[mothertongue1_code, mothertongue2_code, mothertongue3_code])) NOT IN ('NA', 'N/A', 'NIL', 'NONE', '-')
+      ORDER BY mother_tongue
+    `);
+    res.json({ success: true, data: result.rows.map(r => r.mother_tongue) });
+  } catch (err) {
+    console.error('Error fetching mother tongues:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Get distinct CCA groupings
+app.get('/api/dropdown/cca-groupings', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT DISTINCT cca_grouping_desc 
+      FROM ccas 
+      WHERE cca_grouping_desc IS NOT NULL 
+        AND TRIM(cca_grouping_desc) != '' 
+        AND UPPER(cca_grouping_desc) NOT IN ('NA', 'N/A', 'NIL', 'NONE', '-')
+      ORDER BY cca_grouping_desc
+    `);
+    res.json({ success: true, data: result.rows.map(r => r.cca_grouping_desc) });
+  } catch (err) {
+    console.error('Error fetching CCA groupings:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Get distinct ALP domains
+app.get('/api/dropdown/alp-domains', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT DISTINCT alp_domain 
+      FROM distinctive_programmes 
+      WHERE alp_domain IS NOT NULL 
+        AND TRIM(alp_domain) != '' 
+        AND UPPER(alp_domain) NOT IN ('NA', 'N/A', 'NIL', 'NONE', '-')
+      ORDER BY alp_domain
+    `);
+    res.json({ success: true, data: result.rows.map(r => r.alp_domain) });
+  } catch (err) {
+    console.error('Error fetching ALP domains:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Get distinct LLP domains
+app.get('/api/dropdown/llp-domains', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT DISTINCT llp_domain1 
+      FROM distinctive_programmes 
+      WHERE llp_domain1 IS NOT NULL 
+        AND TRIM(llp_domain1) != '' 
+        AND UPPER(llp_domain1) NOT IN ('NA', 'N/A', 'NIL', 'NONE', '-')
+      ORDER BY llp_domain1
+    `);
+    res.json({ success: true, data: result.rows.map(r => r.llp_domain1) });
+  } catch (err) {
+    console.error('Error fetching LLP domains:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // ========== ROOT & TEST ROUTES ==========
 
 // Root Route - serves index.html directly without any redirects

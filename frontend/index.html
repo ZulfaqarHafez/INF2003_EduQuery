@@ -614,244 +614,249 @@
 
             <div class="form-group">
               <label for="typeCode">School Type</label>
-              <select id="typeCode">
-                <option value="">Select type...</option>
-                <option value="GOVERNMENT SCHOOL">Government School</option>
-                <option value="GOVERNMENT-AIDED SCHOOL">Government-Aided School</option>
-                <option value="INDEPENDENT SCHOOL">Independent School</option>
-                <option value="SPECIALISED SCHOOL">Specialised School</option>
-                <option value="SPECIALISED INDEPENDENT SCHOOL">Specialised Independent School</option>
-              </select>
+              <select id="typeCode"><!-- School Classification Section with Dynamic Dropdowns -->
+                <div class="form-grid">
+                  <div class="form-group">
+                    <label for="typeCode">School Type</label>
+                    <select id="typeCode">
+                      <option value="">Select type...</option>
+                      <!-- Options loaded dynamically from database -->
+                    </select>
+                  </div>
+
+                  <div class="form-group">
+                    <label for="natureCode">Nature Code</label>
+                    <select id="natureCode">
+                      <option value="">Select nature...</option>
+                      <!-- Options loaded dynamically from database -->
+                    </select>
+                  </div>
+
+                  <div class="form-group">
+                    <label for="sessionCode">Session Code</label>
+                    <select id="sessionCode">
+                      <option value="">Select session...</option>
+                      <!-- Options loaded dynamically from database -->
+                    </select>
+                  </div>
+
+                  <div class="form-group">
+                    <label for="dgpCode">DGP Code</label>
+                    <select id="dgpCode">
+                      <option value="">Select DGP code...</option>
+                      <!-- Options loaded dynamically from database -->
+                    </select>
+                  </div>
+                </div>
+
+                <hr style="margin: 1.5rem 0; border: none; border-top: 1px solid #E5E7EB;">
+
+                <!-- CONTACT INFORMATION -->
+                <h4
+                  style="margin-bottom: 1rem; color: #1F2937; border-bottom: 2px solid #F59E0B; padding-bottom: 0.5rem;">
+                  Contact Information
+                </h4>
+                <div class="form-grid">
+                  <div class="form-group">
+                    <label for="emailAddress">Email Address</label>
+                    <input type="email" id="emailAddress" placeholder="e.g., school@moe.edu.sg">
+                  </div>
+
+                  <div class="form-group">
+                    <label for="telephoneNo">Telephone Number</label>
+                    <input type="text" id="telephoneNo" placeholder="e.g., 6XXXXXXX">
+                  </div>
+
+                  <div class="form-group">
+                    <label for="telephoneNo2">Telephone Number 2</label>
+                    <input type="text" id="telephoneNo2" placeholder="Second phone number">
+                  </div>
+
+                  <div class="form-group">
+                    <label for="faxNo">Fax Number</label>
+                    <input type="text" id="faxNo" placeholder="Fax number">
+                  </div>
+
+                  <div class="form-group full-width">
+                    <label for="urlAddress">Website URL</label>
+                    <input type="url" id="urlAddress" placeholder="https://school.moe.edu.sg">
+                  </div>
+                </div>
+
+                <hr style="margin: 1.5rem 0; border: none; border-top: 1px solid #E5E7EB;">
+
+                <!-- SCHOOL LEADERSHIP -->
+                <h4
+                  style="margin-bottom: 1rem; color: #1F2937; border-bottom: 2px solid #10B981; padding-bottom: 0.5rem;">
+                  School Leadership
+                </h4>
+                <div class="form-grid">
+                  <div class="form-group">
+                    <label for="principalName">Principal Name *</label>
+                    <input type="text" id="principalName" required placeholder="e.g., Mrs. Tan Bee Leng">
+                  </div>
+
+                  <div class="form-group">
+                    <label for="firstVpName">Vice Principal 1</label>
+                    <input type="text" id="firstVpName" placeholder="First VP name">
+                  </div>
+
+                  <div class="form-group">
+                    <label for="secondVpName">Vice Principal 2</label>
+                    <input type="text" id="secondVpName" placeholder="Second VP name">
+                  </div>
+
+                  <div class="form-group">
+                    <label for="thirdVpName">Vice Principal 3</label>
+                    <input type="text" id="thirdVpName" placeholder="Third VP name">
+                  </div>
+
+                  <div class="form-group">
+                    <label for="fourthVpName">Vice Principal 4</label>
+                    <input type="text" id="fourthVpName" placeholder="Fourth VP name">
+                  </div>
+
+                  <div class="form-group">
+                    <label for="fifthVpName">Vice Principal 5</label>
+                    <input type="text" id="fifthVpName" placeholder="Fifth VP name">
+                  </div>
+
+                  <div class="form-group">
+                    <label for="sixthVpName">Vice Principal 6</label>
+                    <input type="text" id="sixthVpName" placeholder="Sixth VP name">
+                  </div>
+                </div>
+
+                <hr style="margin: 1.5rem 0; border: none; border-top: 1px solid #E5E7EB;">
+
+                <!-- SPECIAL PROGRAMMES -->
+                <h4
+                  style="margin-bottom: 1rem; color: #1F2937; border-bottom: 2px solid #8B5CF6; padding-bottom: 0.5rem;">
+                  Special Programmes
+                </h4>
+                <div class="form-grid">
+                  <div class="form-group">
+                    <label for="autonomousInd">Autonomous School</label>
+                    <select id="autonomousInd">
+                      <option value="">Select...</option>
+                      <option value="Yes">Yes</option>
+                      <option value="No">No</option>
+                    </select>
+                  </div>
+
+                  <div class="form-group">
+                    <label for="giftedInd">Gifted Programme</label>
+                    <select id="giftedInd">
+                      <option value="">Select...</option>
+                      <option value="Yes">Yes</option>
+                      <option value="No">No</option>
+                    </select>
+                  </div>
+
+                  <div class="form-group">
+                    <label for="ipInd">Integrated Programme</label>
+                    <select id="ipInd">
+                      <option value="">Select...</option>
+                      <option value="Yes">Yes</option>
+                      <option value="No">No</option>
+                    </select>
+                  </div>
+
+                  <div class="form-group">
+                    <label for="sapInd">SAP School</label>
+                    <select id="sapInd">
+                      <option value="">Select...</option>
+                      <option value="Yes">Yes</option>
+                      <option value="No">No</option>
+                    </select>
+                  </div>
+                </div>
+
+                <hr style="margin: 1.5rem 0; border: none; border-top: 1px solid #E5E7EB;">
+
+                <!-- MOTHER TONGUE LANGUAGES -->
+                <h4
+                  style="margin-bottom: 1rem; color: #1F2937; border-bottom: 2px solid #EC4899; padding-bottom: 0.5rem;">
+                  Mother Tongue Languages
+                </h4>
+                <div class="form-grid">
+                  <div class="form-group">
+                    <label for="mothertongue1Code">Mother Tongue 1</label>
+                    <select id="mothertongue1Code">
+                      <option value="">Select...</option>
+                      <option value="Chinese">Chinese</option>
+                      <option value="Malay">Malay</option>
+                      <option value="Tamil">Tamil</option>
+                      <option value="Hindi">Hindi</option>
+                      <option value="Bengali">Bengali</option>
+                      <option value="Gujarati">Gujarati</option>
+                      <option value="Punjabi">Punjabi</option>
+                      <option value="Urdu">Urdu</option>
+                    </select>
+                  </div>
+
+                  <div class="form-group">
+                    <label for="mothertongue2Code">Mother Tongue 2</label>
+                    <select id="mothertongue2Code">
+                      <option value="">Select...</option>
+                      <option value="Chinese">Chinese</option>
+                      <option value="Malay">Malay</option>
+                      <option value="Tamil">Tamil</option>
+                      <option value="Hindi">Hindi</option>
+                      <option value="Bengali">Bengali</option>
+                      <option value="Gujarati">Gujarati</option>
+                      <option value="Punjabi">Punjabi</option>
+                      <option value="Urdu">Urdu</option>
+                    </select>
+                  </div>
+
+                  <div class="form-group">
+                    <label for="mothertongue3Code">Mother Tongue 3</label>
+                    <select id="mothertongue3Code">
+                      <option value="">Select...</option>
+                      <option value="Chinese">Chinese</option>
+                      <option value="Malay">Malay</option>
+                      <option value="Tamil">Tamil</option>
+                      <option value="Hindi">Hindi</option>
+                      <option value="Bengali">Bengali</option>
+                      <option value="Gujarati">Gujarati</option>
+                      <option value="Punjabi">Punjabi</option>
+                      <option value="Urdu">Urdu</option>
+                    </select>
+                  </div>
+                </div>
+
+                <hr style="margin: 1.5rem 0; border: none; border-top: 1px solid #E5E7EB;">
+
+                <!-- TRANSPORTATION -->
+                <h4
+                  style="margin-bottom: 1rem; color: #1F2937; border-bottom: 2px solid #EF4444; padding-bottom: 0.5rem;">
+                  Transportation
+                </h4>
+                <div class="form-grid">
+                  <div class="form-group full-width">
+                    <label for="mrtDesc">MRT Description</label>
+                    <input type="text" id="mrtDesc" placeholder="e.g., Ang Mo Kio MRT">
+                  </div>
+
+                  <div class="form-group full-width">
+                    <label for="busDesc">Bus Services</label>
+                    <input type="text" id="busDesc" placeholder="e.g., 123, 456, 789">
+                  </div>
+                </div>
+
             </div>
 
-            <div class="form-group">
-              <label for="natureCode">Nature Code</label>
-              <select id="natureCode">
-                <option value="">Select nature...</option>
-                <option value="CO-ED SCHOOL">Co-Ed School</option>
-                <option value="BOYS' SCHOOL">Boys' School</option>
-                <option value="GIRLS' SCHOOL">Girls' School</option>
-              </select>
+            <div class="modal-footer">
+              <button type="button" class="btn-secondary" onclick="hideAddModal()">Cancel</button>
+              <button type="submit" class="btn-primary">
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+                  <path
+                    d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" />
+                </svg>
+                Save School
+              </button>
             </div>
-
-            <div class="form-group">
-              <label for="sessionCode">Session Code</label>
-              <select id="sessionCode">
-                <option value="">Select session...</option>
-                <option value="SINGLE SESSION">Single Session</option>
-                <option value="DOUBLE SESSION">Double Session</option>
-              </select>
-            </div>
-
-            <div class="form-group">
-              <label for="dgpCode">DGP Code</label>
-              <input type="text" id="dgpCode" placeholder="e.g., P1">
-            </div>
-          </div>
-
-          <hr style="margin: 1.5rem 0; border: none; border-top: 1px solid #E5E7EB;">
-
-          <!-- CONTACT INFORMATION -->
-          <h4 style="margin-bottom: 1rem; color: #1F2937; border-bottom: 2px solid #F59E0B; padding-bottom: 0.5rem;">
-            Contact Information
-          </h4>
-          <div class="form-grid">
-            <div class="form-group">
-              <label for="emailAddress">Email Address</label>
-              <input type="email" id="emailAddress" placeholder="e.g., school@moe.edu.sg">
-            </div>
-
-            <div class="form-group">
-              <label for="telephoneNo">Telephone Number</label>
-              <input type="text" id="telephoneNo" placeholder="e.g., 6XXXXXXX">
-            </div>
-
-            <div class="form-group">
-              <label for="telephoneNo2">Telephone Number 2</label>
-              <input type="text" id="telephoneNo2" placeholder="Second phone number">
-            </div>
-
-            <div class="form-group">
-              <label for="faxNo">Fax Number</label>
-              <input type="text" id="faxNo" placeholder="Fax number">
-            </div>
-
-            <div class="form-group full-width">
-              <label for="urlAddress">Website URL</label>
-              <input type="url" id="urlAddress" placeholder="https://school.moe.edu.sg">
-            </div>
-          </div>
-
-          <hr style="margin: 1.5rem 0; border: none; border-top: 1px solid #E5E7EB;">
-
-          <!-- SCHOOL LEADERSHIP -->
-          <h4 style="margin-bottom: 1rem; color: #1F2937; border-bottom: 2px solid #10B981; padding-bottom: 0.5rem;">
-            School Leadership
-          </h4>
-          <div class="form-grid">
-            <div class="form-group">
-              <label for="principalName">Principal Name *</label>
-              <input type="text" id="principalName" required placeholder="e.g., Mrs. Tan Bee Leng">
-            </div>
-
-            <div class="form-group">
-              <label for="firstVpName">Vice Principal 1</label>
-              <input type="text" id="firstVpName" placeholder="First VP name">
-            </div>
-
-            <div class="form-group">
-              <label for="secondVpName">Vice Principal 2</label>
-              <input type="text" id="secondVpName" placeholder="Second VP name">
-            </div>
-
-            <div class="form-group">
-              <label for="thirdVpName">Vice Principal 3</label>
-              <input type="text" id="thirdVpName" placeholder="Third VP name">
-            </div>
-
-            <div class="form-group">
-              <label for="fourthVpName">Vice Principal 4</label>
-              <input type="text" id="fourthVpName" placeholder="Fourth VP name">
-            </div>
-
-            <div class="form-group">
-              <label for="fifthVpName">Vice Principal 5</label>
-              <input type="text" id="fifthVpName" placeholder="Fifth VP name">
-            </div>
-
-            <div class="form-group">
-              <label for="sixthVpName">Vice Principal 6</label>
-              <input type="text" id="sixthVpName" placeholder="Sixth VP name">
-            </div>
-          </div>
-
-          <hr style="margin: 1.5rem 0; border: none; border-top: 1px solid #E5E7EB;">
-
-          <!-- SPECIAL PROGRAMMES -->
-          <h4 style="margin-bottom: 1rem; color: #1F2937; border-bottom: 2px solid #8B5CF6; padding-bottom: 0.5rem;">
-            Special Programmes
-          </h4>
-          <div class="form-grid">
-            <div class="form-group">
-              <label for="autonomousInd">Autonomous School</label>
-              <select id="autonomousInd">
-                <option value="">Select...</option>
-                <option value="Yes">Yes</option>
-                <option value="No">No</option>
-              </select>
-            </div>
-
-            <div class="form-group">
-              <label for="giftedInd">Gifted Programme</label>
-              <select id="giftedInd">
-                <option value="">Select...</option>
-                <option value="Yes">Yes</option>
-                <option value="No">No</option>
-              </select>
-            </div>
-
-            <div class="form-group">
-              <label for="ipInd">Integrated Programme</label>
-              <select id="ipInd">
-                <option value="">Select...</option>
-                <option value="Yes">Yes</option>
-                <option value="No">No</option>
-              </select>
-            </div>
-
-            <div class="form-group">
-              <label for="sapInd">SAP School</label>
-              <select id="sapInd">
-                <option value="">Select...</option>
-                <option value="Yes">Yes</option>
-                <option value="No">No</option>
-              </select>
-            </div>
-          </div>
-
-          <hr style="margin: 1.5rem 0; border: none; border-top: 1px solid #E5E7EB;">
-
-          <!-- MOTHER TONGUE LANGUAGES -->
-          <h4 style="margin-bottom: 1rem; color: #1F2937; border-bottom: 2px solid #EC4899; padding-bottom: 0.5rem;">
-            Mother Tongue Languages
-          </h4>
-          <div class="form-grid">
-            <div class="form-group">
-              <label for="mothertongue1Code">Mother Tongue 1</label>
-              <select id="mothertongue1Code">
-                <option value="">Select...</option>
-                <option value="Chinese">Chinese</option>
-                <option value="Malay">Malay</option>
-                <option value="Tamil">Tamil</option>
-                <option value="Hindi">Hindi</option>
-                <option value="Bengali">Bengali</option>
-                <option value="Gujarati">Gujarati</option>
-                <option value="Punjabi">Punjabi</option>
-                <option value="Urdu">Urdu</option>
-              </select>
-            </div>
-
-            <div class="form-group">
-              <label for="mothertongue2Code">Mother Tongue 2</label>
-              <select id="mothertongue2Code">
-                <option value="">Select...</option>
-                <option value="Chinese">Chinese</option>
-                <option value="Malay">Malay</option>
-                <option value="Tamil">Tamil</option>
-                <option value="Hindi">Hindi</option>
-                <option value="Bengali">Bengali</option>
-                <option value="Gujarati">Gujarati</option>
-                <option value="Punjabi">Punjabi</option>
-                <option value="Urdu">Urdu</option>
-              </select>
-            </div>
-
-            <div class="form-group">
-              <label for="mothertongue3Code">Mother Tongue 3</label>
-              <select id="mothertongue3Code">
-                <option value="">Select...</option>
-                <option value="Chinese">Chinese</option>
-                <option value="Malay">Malay</option>
-                <option value="Tamil">Tamil</option>
-                <option value="Hindi">Hindi</option>
-                <option value="Bengali">Bengali</option>
-                <option value="Gujarati">Gujarati</option>
-                <option value="Punjabi">Punjabi</option>
-                <option value="Urdu">Urdu</option>
-              </select>
-            </div>
-          </div>
-
-          <hr style="margin: 1.5rem 0; border: none; border-top: 1px solid #E5E7EB;">
-
-          <!-- TRANSPORTATION -->
-          <h4 style="margin-bottom: 1rem; color: #1F2937; border-bottom: 2px solid #EF4444; padding-bottom: 0.5rem;">
-            Transportation
-          </h4>
-          <div class="form-grid">
-            <div class="form-group full-width">
-              <label for="mrtDesc">MRT Description</label>
-              <input type="text" id="mrtDesc" placeholder="e.g., Ang Mo Kio MRT">
-            </div>
-
-            <div class="form-group full-width">
-              <label for="busDesc">Bus Services</label>
-              <input type="text" id="busDesc" placeholder="e.g., 123, 456, 789">
-            </div>
-          </div>
-
-        </div>
-
-        <div class="modal-footer">
-          <button type="button" class="btn-secondary" onclick="hideAddModal()">Cancel</button>
-          <button type="submit" class="btn-primary">
-            <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
-              <path
-                d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" />
-            </svg>
-            Save School
-          </button>
-        </div>
       </form>
     </div>
   </div>
@@ -1286,6 +1291,7 @@
                   <option value="">All Levels</option>
                   <option value="PRIMARY">Primary</option>
                   <option value="SECONDARY">Secondary</option>
+                  <option value="MIXED">Mixed</option>
                   <option value="JUNIOR COLLEGE">Junior College</option>
                   <option value="CENTRALISED INSTITUTE">Centralised Institute</option>
                 </select>
@@ -1293,32 +1299,42 @@
 
               <div class="form-group">
                 <label for="adv_type_code">School Type</label>
-                <input type="text" id="adv_type_code" placeholder="e.g., GOVERNMENT">
+                <select id="adv_type_code">
+                  <option value="">Any Type</option>
+                  <!-- Options loaded dynamically from database -->
+                </select>
               </div>
 
               <div class="form-group">
                 <label for="adv_nature_code">Nature Code</label>
-                <input type="text" id="adv_nature_code" placeholder="e.g., CO-ED">
-              </div>
-
-              <div class="form-group">
-                <label for="adv_school_section">School Section</label>
-                <input type="text" id="adv_school_section" placeholder="e.g., MAINSTREAM">
+                <select id="adv_nature_code">
+                  <option value="">Any Nature</option>
+                  <!-- Options loaded dynamically from database -->
+                </select>
               </div>
 
               <div class="form-group">
                 <label for="adv_session_code">Session Code</label>
-                <input type="text" id="adv_session_code" placeholder="e.g., AM/PM">
+                <select id="adv_session_code">
+                  <option value="">Any Session</option>
+                  <!-- Options loaded dynamically from database -->
+                </select>
               </div>
 
               <div class="form-group">
                 <label for="adv_dgp_code">DGP Code</label>
-                <input type="text" id="adv_dgp_code" placeholder="DGP classification">
+                <select id="adv_dgp_code">
+                  <option value="">Any DGP Code</option>
+                  <!-- Options loaded dynamically from database -->
+                </select>
               </div>
 
               <div class="form-group">
-                <label for="adv_mothertongue_code">Mother Tongue Code</label>
-                <input type="text" id="adv_mothertongue_code" placeholder="e.g., Malay/Chinese/Tamil">
+                <label for="adv_mothertongue_code">Mother Tongue Language</label>
+                <select id="adv_mothertongue_code">
+                  <option value="">Any Language</option>
+                  <!-- Options loaded dynamically from database -->
+                </select>
               </div>
             </div>
           </div>
@@ -1376,7 +1392,10 @@
             <div class="form-grid">
               <div class="form-group">
                 <label for="adv_alp_domain">ALP Domain</label>
-                <input type="text" id="adv_alp_domain" placeholder="e.g., Science, Technology">
+                <select id="adv_alp_domain">
+                  <option value="">Any ALP Domain</option>
+                  <!-- Options loaded dynamically from database -->
+                </select>
               </div>
 
               <div class="form-group full-width">
@@ -1392,7 +1411,10 @@
             <div class="form-grid">
               <div class="form-group">
                 <label for="adv_llp_domain1">LLP Domain</label>
-                <input type="text" id="adv_llp_domain1" placeholder="e.g., Sports, Arts">
+                <select id="adv_llp_domain1">
+                  <option value="">Any LLP Domain</option>
+                  <!-- Options loaded dynamically from database -->
+                </select>
               </div>
 
               <div class="form-group full-width">
@@ -1423,7 +1445,10 @@
 
               <div class="form-group full-width">
                 <label for="adv_cca_grouping_desc">CCA Grouping</label>
-                <input type="text" id="adv_cca_grouping_desc" placeholder="e.g., Sports, Clubs & Societies">
+                <select id="adv_cca_grouping_desc">
+                  <option value="">Any CCA Group</option>
+                  <!-- Options loaded dynamically from database -->
+                </select>
               </div>
             </div>
           </div>

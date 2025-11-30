@@ -1,5 +1,6 @@
 let pendingDeleteId = null;
 let pendingDeleteName = null;
+const originalShowEditModal = window.showEditModal;
 
 // ========== ADMIN AUTHENTICATION MANAGEMENT ==========
 
@@ -1700,7 +1701,6 @@ window.clearSearch = function () {
 
 // Add Modal Management
 window.showAddModal = function () {
-  // Check if user is admin before showing modal
   if (!isUserAdmin()) {
     showToast('Admin privileges required to add schools', 'error');
     return;
@@ -1711,6 +1711,9 @@ window.showAddModal = function () {
   if (modal) {
     modal.classList.add('active');
     document.body.style.overflow = 'hidden';
+    
+    // Load dynamic dropdowns
+    loadAddEditDropdowns();
   } else {
     console.error('Modal not found');
   }
@@ -1727,68 +1730,16 @@ window.hideAddModal = function () {
 };
 
 // Edit Modal Management
-window.showEditModal = function (school) {
-  if (!isUserAdmin()) {
-    showToast('Admin privileges required to edit schools', 'error');
-    return;
-  }
-
-  const modal = document.getElementById('editModal');
-  if (!modal) {
-    console.error('Edit modal not found');
-    return;
-  }
-
-  // Basic Information
-  document.getElementById('editSchoolId').value = school.school_id || '';
-  document.getElementById('editSchoolName').value = school.school_name || '';
-  document.getElementById('editAddress').value = school.address || '';
-  document.getElementById('editPostalCode').value = school.postal_code || '';
-  document.getElementById('editZoneCode').value = school.zone_code || '';
-  document.getElementById('editMainlevelCode').value = school.mainlevel_code || '';
+window.showEditModal = function(school) {
+  // Load dropdowns first
+  loadAddEditDropdowns();
   
-  // School Classification
-  document.getElementById('editTypeCode').value = school.type_code || '';
-  document.getElementById('editNatureCode').value = school.nature_code || '';
-  document.getElementById('editSessionCode').value = school.session_code || '';
-  document.getElementById('editDgpCode').value = school.dgp_code || '';
-
-  // Contact Information
-  document.getElementById('editEmailAddress').value = school.email_address || '';
-  document.getElementById('editTelephoneNo').value = school.telephone_no || '';
-  document.getElementById('editTelephoneNo2').value = school.telephone_no_2 || '';
-  document.getElementById('editFaxNo').value = school.fax_no || '';
-  document.getElementById('editUrlAddress').value = school.url_address || '';
-
-  // School Leadership
-  document.getElementById('editPrincipalName').value = school.principal_name || '';
-  document.getElementById('editFirstVpName').value = school.first_vp_name || '';
-  document.getElementById('editSecondVpName').value = school.second_vp_name || '';
-  document.getElementById('editThirdVpName').value = school.third_vp_name || '';
-  document.getElementById('editFourthVpName').value = school.fourth_vp_name || '';
-  document.getElementById('editFifthVpName').value = school.fifth_vp_name || '';
-  document.getElementById('editSixthVpName').value = school.sixth_vp_name || '';
-
-  // Special Programmes
-  document.getElementById('editAutonomousInd').value = school.autonomous_ind || '';
-  document.getElementById('editGiftedInd').value = school.gifted_ind || '';
-  document.getElementById('editIpInd').value = school.ip_ind || '';
-  document.getElementById('editSapInd').value = school.sap_ind || '';
-
-  // Mother Tongue Languages
-  document.getElementById('editMothertongue1Code').value = school.mothertongue1_code || '';
-  document.getElementById('editMothertongue2Code').value = school.mothertongue2_code || '';
-  document.getElementById('editMothertongue3Code').value = school.mothertongue3_code || '';
-
-  // Transportation
-  document.getElementById('editMrtDesc').value = school.mrt_desc || '';
-  document.getElementById('editBusDesc').value = school.bus_desc || '';
-
-  // Show modal
-  modal.style.display = '';
-  modal.classList.add('active');
-  document.body.style.overflow = 'hidden';
+  // Small delay to ensure dropdowns are populated before setting values
+  setTimeout(() => {
+    originalShowEditModal(school);
+  }, 100);
 };
+
 
 window.hideEditModal = function () {
   console.log('Closing edit modal');
@@ -3406,6 +3357,37 @@ function renderDistinctivesList(distinctives) {
         </div>
     `;
 }
+
+// Load dropdown values for Add/Edit modals
+function loadAddEditDropdowns() {
+  console.log('Loading dropdowns for Add/Edit modals...');
+
+  // For Add Modal
+  loadDropdownOptions('/api/dropdown/types', 'typeCode', 'Select type...');
+  loadDropdownOptions('/api/dropdown/natures', 'natureCode', 'Select nature...');
+  loadDropdownOptions('/api/dropdown/sessions', 'sessionCode', 'Select session...');
+  loadDropdownOptions('/api/dropdown/dgp-codes', 'dgpCode', 'DGP classification');
+  loadDropdownOptions('/api/dropdown/mother-tongues', 'mothertongue1Code', 'Select...');
+  loadDropdownOptions('/api/dropdown/mother-tongues', 'mothertongue2Code', 'Select...');
+  loadDropdownOptions('/api/dropdown/mother-tongues', 'mothertongue3Code', 'Select...');
+
+  // For Edit Modal
+  loadDropdownOptions('/api/dropdown/types', 'editTypeCode', 'Select type');
+  loadDropdownOptions('/api/dropdown/natures', 'editNatureCode', 'Select nature');
+  loadDropdownOptions('/api/dropdown/sessions', 'editSessionCode', 'Select session');
+  loadDropdownOptions('/api/dropdown/dgp-codes', 'editDgpCode', 'DGP classification');
+  loadDropdownOptions('/api/dropdown/mother-tongues', 'editMothertongue1Code', 'Select...');
+  loadDropdownOptions('/api/dropdown/mother-tongues', 'editMothertongue2Code', 'Select...');
+  loadDropdownOptions('/api/dropdown/mother-tongues', 'editMothertongue3Code', 'Select...');
+}
+
+// Pre-load dropdown values on page load for faster modal opens
+document.addEventListener('DOMContentLoaded', function() {
+  // Pre-load dropdown values in background after page loads
+  setTimeout(() => {
+    loadAddEditDropdowns();
+  }, 2000); // Wait 2 seconds after page load
+});
 
 // ========== Toast Notifications ==========
 function showToast(message, type = 'info') {

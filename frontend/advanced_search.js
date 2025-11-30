@@ -1,9 +1,84 @@
 // ========== Advanced Search Functions ==========
 
+// Cache for dropdown values to avoid repeated API calls
+const dropdownCache = {};
+
+// Load dropdown options from API
+async function loadDropdownOptions(endpoint, selectId, defaultOption = 'Select...') {
+  // Check cache first
+  if (dropdownCache[endpoint]) {
+    populateDropdown(selectId, dropdownCache[endpoint], defaultOption);
+    return;
+  }
+
+  try {
+    const response = await fetch(endpoint);
+    const data = await response.json();
+
+    if (data.success && data.data) {
+      // Cache the data
+      dropdownCache[endpoint] = data.data;
+      populateDropdown(selectId, data.data, defaultOption);
+    }
+  } catch (error) {
+    console.error(`Failed to load dropdown for ${selectId}:`, error);
+  }
+}
+
+// Populate a dropdown with options
+function populateDropdown(selectId, options, defaultOption) {
+  const select = document.getElementById(selectId);
+  if (!select) return;
+
+  // Clear existing options except the first one
+  select.innerHTML = `<option value="">${defaultOption}</option>`;
+
+  // Add options
+  options.forEach(value => {
+    const option = document.createElement('option');
+    option.value = value;
+    option.textContent = value;
+    select.appendChild(option);
+  });
+}
+
+// Load all dynamic dropdowns when advanced search modal opens
+function loadAdvancedSearchDropdowns() {
+  console.log('Loading advanced search dropdowns from database...');
+
+  // School Classification
+  loadDropdownOptions('/api/dropdown/types', 'adv_type_code', 'Any Type');
+  loadDropdownOptions('/api/dropdown/natures', 'adv_nature_code', 'Any Nature');
+  loadDropdownOptions('/api/dropdown/sessions', 'adv_session_code', 'Any Session');
+  loadDropdownOptions('/api/dropdown/dgp-codes', 'adv_dgp_code', 'Any DGP Code');
+
+  // Mother Tongue
+  loadDropdownOptions('/api/dropdown/mother-tongues', 'adv_mothertongue_code', 'Any Mother Tongue');
+
+  // CCA Grouping
+  loadDropdownOptions('/api/dropdown/cca-groupings', 'adv_cca_grouping_desc', 'Any CCA Group');
+
+  // Distinctive Programmes
+  loadDropdownOptions('/api/dropdown/alp-domains', 'adv_alp_domain', 'Any ALP Domain');
+  loadDropdownOptions('/api/dropdown/llp-domains', 'adv_llp_domain1', 'Any LLP Domain');
+}
+
+// Enhanced showAdvancedSearch - load dropdowns when opening modal
 function showAdvancedSearch() {
   document.getElementById('advancedSearchModal').classList.add('active');
   document.body.style.overflow = 'hidden';
+  
+  // Load dynamic dropdowns
+  loadAdvancedSearchDropdowns();
 }
+
+// Also load dropdowns on page load for faster subsequent opens
+document.addEventListener('DOMContentLoaded', function() {
+  // Pre-load dropdown values in background
+  setTimeout(() => {
+    loadAdvancedSearchDropdowns();
+  }, 2000); // Wait 2 seconds after page load
+});
 
 function hideAdvancedSearch() {
   document.getElementById('advancedSearchModal').classList.remove('active');
