@@ -865,9 +865,9 @@
         <h3>Edit School</h3>
         <button class="modal-close" type="button" onclick="hideEditModal()">
           <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
-            <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 
-                4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 
-                4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" />
+            <path fill-rule="evenodd"
+              d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
+              clip-rule="evenodd" />
           </svg>
         </button>
       </div>
@@ -877,8 +877,10 @@
 
         <div class="detail-modal-content" style="padding: 1.5rem;">
 
-          <!-- BASIC INFORMATION (matches view card) -->
-          <h4 class="section-title">Basic Information</h4>
+          <!-- BASIC INFORMATION -->
+          <h4 style="margin-bottom: 1rem; color: #1F2937; border-bottom: 2px solid #3B82F6; padding-bottom: 0.5rem;">
+            Basic Information
+          </h4>
           <div class="form-grid">
             <div class="form-group">
               <label for="editSchoolName">School Name *</label>
@@ -950,12 +952,19 @@
                 <option value="DOUBLE SESSION">Double Session</option>
               </select>
             </div>
+
+            <div class="form-group">
+              <label for="editDgpCode">DGP Code</label>
+              <input type="text" id="editDgpCode" />
+            </div>
           </div>
 
-          <hr class="modal-divider" />
+          <hr style="margin: 1.5rem 0; border: none; border-top: 1px solid #E5E7EB;">
 
-          <!-- CONTACT INFORMATION (matches view card) -->
-          <h4 class="section-title">Contact Information</h4>
+          <!-- CONTACT INFORMATION -->
+          <h4 style="margin-bottom: 1rem; color: #1F2937; border-bottom: 2px solid #F59E0B; padding-bottom: 0.5rem;">
+            Contact Information
+          </h4>
           <div class="form-grid">
             <div class="form-group">
               <label for="editEmailAddress">Email Address</label>
@@ -966,16 +975,33 @@
               <label for="editTelephoneNo">Telephone No.</label>
               <input type="text" id="editTelephoneNo" />
             </div>
+
+            <div class="form-group">
+              <label for="editTelephoneNo2">Telephone No. 2</label>
+              <input type="text" id="editTelephoneNo2" />
+            </div>
+
+            <div class="form-group">
+              <label for="editFaxNo">Fax Number</label>
+              <input type="text" id="editFaxNo" />
+            </div>
+
+            <div class="form-group full-width">
+              <label for="editUrlAddress">Website URL</label>
+              <input type="url" id="editUrlAddress" />
+            </div>
           </div>
 
-          <hr class="modal-divider" />
+          <hr style="margin: 1.5rem 0; border: none; border-top: 1px solid #E5E7EB;">
 
           <!-- SCHOOL LEADERSHIP -->
-          <h4 class="section-title">School Leadership</h4>
+          <h4 style="margin-bottom: 1rem; color: #1F2937; border-bottom: 2px solid #10B981; padding-bottom: 0.5rem;">
+            School Leadership
+          </h4>
           <div class="form-grid">
             <div class="form-group">
-              <label for="editPrincipalName">Principal</label>
-              <input type="text" id="editPrincipalName" />
+              <label for="editPrincipalName">Principal *</label>
+              <input type="text" id="editPrincipalName" required />
             </div>
 
             <div class="form-group">
@@ -1002,12 +1028,116 @@
               <label for="editFifthVpName">Vice Principal 5</label>
               <input type="text" id="editFifthVpName" />
             </div>
+
+            <div class="form-group">
+              <label for="editSixthVpName">Vice Principal 6</label>
+              <input type="text" id="editSixthVpName" />
+            </div>
           </div>
 
-          <hr class="modal-divider" />
+          <hr style="margin: 1.5rem 0; border: none; border-top: 1px solid #E5E7EB;">
 
-          <!-- TRANSPORTATION (matches view card) -->
-          <h4 class="section-title">Transportation</h4>
+          <!-- SPECIAL PROGRAMMES -->
+          <h4 style="margin-bottom: 1rem; color: #1F2937; border-bottom: 2px solid #8B5CF6; padding-bottom: 0.5rem;">
+            Special Programmes
+          </h4>
+          <div class="form-grid">
+            <div class="form-group">
+              <label for="editAutonomousInd">Autonomous School</label>
+              <select id="editAutonomousInd">
+                <option value="">Select...</option>
+                <option value="Yes">Yes</option>
+                <option value="No">No</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label for="editGiftedInd">Gifted Programme</label>
+              <select id="editGiftedInd">
+                <option value="">Select...</option>
+                <option value="Yes">Yes</option>
+                <option value="No">No</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label for="editIpInd">Integrated Programme</label>
+              <select id="editIpInd">
+                <option value="">Select...</option>
+                <option value="Yes">Yes</option>
+                <option value="No">No</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label for="editSapInd">SAP School</label>
+              <select id="editSapInd">
+                <option value="">Select...</option>
+                <option value="Yes">Yes</option>
+                <option value="No">No</option>
+              </select>
+            </div>
+          </div>
+
+          <hr style="margin: 1.5rem 0; border: none; border-top: 1px solid #E5E7EB;">
+
+          <!-- MOTHER TONGUE LANGUAGES -->
+          <h4 style="margin-bottom: 1rem; color: #1F2937; border-bottom: 2px solid #EC4899; padding-bottom: 0.5rem;">
+            Mother Tongue Languages
+          </h4>
+          <div class="form-grid">
+            <div class="form-group">
+              <label for="editMothertongue1Code">Mother Tongue 1</label>
+              <select id="editMothertongue1Code">
+                <option value="">Select...</option>
+                <option value="Chinese">Chinese</option>
+                <option value="Malay">Malay</option>
+                <option value="Tamil">Tamil</option>
+                <option value="Hindi">Hindi</option>
+                <option value="Bengali">Bengali</option>
+                <option value="Gujarati">Gujarati</option>
+                <option value="Punjabi">Punjabi</option>
+                <option value="Urdu">Urdu</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label for="editMothertongue2Code">Mother Tongue 2</label>
+              <select id="editMothertongue2Code">
+                <option value="">Select...</option>
+                <option value="Chinese">Chinese</option>
+                <option value="Malay">Malay</option>
+                <option value="Tamil">Tamil</option>
+                <option value="Hindi">Hindi</option>
+                <option value="Bengali">Bengali</option>
+                <option value="Gujarati">Gujarati</option>
+                <option value="Punjabi">Punjabi</option>
+                <option value="Urdu">Urdu</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label for="editMothertongue3Code">Mother Tongue 3</label>
+              <select id="editMothertongue3Code">
+                <option value="">Select...</option>
+                <option value="Chinese">Chinese</option>
+                <option value="Malay">Malay</option>
+                <option value="Tamil">Tamil</option>
+                <option value="Hindi">Hindi</option>
+                <option value="Bengali">Bengali</option>
+                <option value="Gujarati">Gujarati</option>
+                <option value="Punjabi">Punjabi</option>
+                <option value="Urdu">Urdu</option>
+              </select>
+            </div>
+          </div>
+
+          <hr style="margin: 1.5rem 0; border: none; border-top: 1px solid #E5E7EB;">
+
+          <!-- TRANSPORTATION -->
+          <h4 style="margin-bottom: 1rem; color: #1F2937; border-bottom: 2px solid #EF4444; padding-bottom: 0.5rem;">
+            Transportation
+          </h4>
           <div class="form-grid">
             <div class="form-group full-width">
               <label for="editMrtDesc">MRT Description</label>
@@ -1034,7 +1164,6 @@
       </form>
     </div>
   </div>
-
 
   <!-- Delete Confirmation Modal -->
   <div id="deleteModal" class="modal">

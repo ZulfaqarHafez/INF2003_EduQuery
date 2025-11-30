@@ -264,7 +264,7 @@ app.get('/api/schools', async (req, res) => {
 });
 
 // CREATE - Add new school
-app.post('/api/schools', requireAuth, requireAdmin, async (req, res) => {
+app.post('/api/schools', requireAuth, async (req, res) => {
   try {
     const {
       // Basic Information (Required)
@@ -400,40 +400,148 @@ app.post('/api/schools', requireAuth, requireAdmin, async (req, res) => {
 });
 
 // UPDATE - Edit existing school
-app.put('/api/schools/:id', async (req, res) => {
+app.put('/api/schools/:id', requireAuth, async (req, res) => {
   try {
     const { id } = req.params;
-    const { school_name, address, postal_code, zone_code, mainlevel_code, principal_name } = req.body;
+    const {
+      // Basic Information (Required)
+      school_name, address, postal_code, zone_code, mainlevel_code, principal_name,
+      
+      // School Classification
+      type_code, nature_code, session_code, dgp_code,
+      
+      // Contact Information
+      email_address, telephone_no, telephone_no_2, fax_no, url_address,
+      
+      // School Leadership
+      first_vp_name, second_vp_name, third_vp_name, fourth_vp_name, fifth_vp_name, sixth_vp_name,
+      
+      // Special Programmes
+      autonomous_ind, gifted_ind, ip_ind, sap_ind,
+      
+      // Mother Tongue Languages
+      mothertongue1_code, mothertongue2_code, mothertongue3_code,
+      
+      // Transportation
+      mrt_desc, bus_desc
+    } = req.body;
 
     // Validate required fields
     if (!school_name || !address || !postal_code || !zone_code || !mainlevel_code || !principal_name) {
-      return res.status(400).json({ error: 'All fields are required' });
+      return res.status(400).json({ 
+        success: false,
+        error: 'Required fields: school_name, address, postal_code, zone_code, mainlevel_code, principal_name' 
+      });
     }
 
-    // Update in PostgreSQL
-    const result = await pool.query(
-      `UPDATE Schools 
-       SET school_name = $1, address = $2, postal_code = $3, 
-           zone_code = $4, mainlevel_code = $5, principal_name = $6
-       WHERE school_id = $7
-       RETURNING *`,
-      [school_name, address, postal_code, zone_code, mainlevel_code, principal_name, id]
-    );
+    // Start a transaction
+    const client = await pool.connect();
+    
+    try {
+      await client.query('BEGIN');
 
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'School not found' });
+      // 1. Update Schools table
+      const schoolResult = await client.query(
+        `UPDATE Schools 
+         SET school_name = $1, address = $2, postal_code = $3, 
+             zone_code = $4, mainlevel_code = $5, principal_name = $6
+         WHERE school_id = $7
+         RETURNING *`,
+        [school_name, address, postal_code, zone_code, mainlevel_code, principal_name, id]
+      );
+
+      if (schoolResult.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return res.status(404).json({ 
+          success: false,
+          error: 'School not found' 
+        });
+      }
+
+      // 2. Update raw_general_info table
+      // First check if record exists
+      const checkResult = await client.query(
+        'SELECT school_name FROM raw_general_info WHERE LOWER(school_name) = LOWER($1)',
+        [school_name]
+      );
+
+      if (checkResult.rows.length > 0) {
+        // Update existing record
+        await client.query(
+          `UPDATE raw_general_info SET
+            address = $1, postal_code = $2, zone_code = $3, mainlevel_code = $4, principal_name = $5,
+            type_code = $6, nature_code = $7, session_code = $8, dgp_code = $9,
+            email_address = $10, telephone_no = $11, telephone_no_2 = $12, fax_no = $13, url_address = $14,
+            first_vp_name = $15, second_vp_name = $16, third_vp_name = $17, 
+            fourth_vp_name = $18, fifth_vp_name = $19, sixth_vp_name = $20,
+            autonomous_ind = $21, gifted_ind = $22, ip_ind = $23, sap_ind = $24,
+            mothertongue1_code = $25, mothertongue2_code = $26, mothertongue3_code = $27,
+            mrt_desc = $28, bus_desc = $29
+          WHERE LOWER(school_name) = LOWER($30)`,
+          [
+            address, postal_code, zone_code, mainlevel_code, principal_name,
+            type_code, nature_code, session_code, dgp_code,
+            email_address, telephone_no, telephone_no_2, fax_no, url_address,
+            first_vp_name, second_vp_name, third_vp_name, fourth_vp_name, fifth_vp_name, sixth_vp_name,
+            autonomous_ind, gifted_ind, ip_ind, sap_ind,
+            mothertongue1_code, mothertongue2_code, mothertongue3_code,
+            mrt_desc, bus_desc,
+            school_name
+          ]
+        );
+      } else {
+        // Insert new record
+        await client.query(
+          `INSERT INTO raw_general_info (
+            school_name, address, postal_code, zone_code, mainlevel_code, principal_name,
+            type_code, nature_code, session_code, dgp_code,
+            email_address, telephone_no, telephone_no_2, fax_no, url_address,
+            first_vp_name, second_vp_name, third_vp_name, fourth_vp_name, fifth_vp_name, sixth_vp_name,
+            autonomous_ind, gifted_ind, ip_ind, sap_ind,
+            mothertongue1_code, mothertongue2_code, mothertongue3_code,
+            mrt_desc, bus_desc
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30)`,
+          [
+            school_name, address, postal_code, zone_code, mainlevel_code, principal_name,
+            type_code, nature_code, session_code, dgp_code,
+            email_address, telephone_no, telephone_no_2, fax_no, url_address,
+            first_vp_name, second_vp_name, third_vp_name, fourth_vp_name, fifth_vp_name, sixth_vp_name,
+            autonomous_ind, gifted_ind, ip_ind, sap_ind,
+            mothertongue1_code, mothertongue2_code, mothertongue3_code,
+            mrt_desc, bus_desc
+          ]
+        );
+      }
+
+      await client.query('COMMIT');
+
+      // Log activity to MongoDB
+      logActivity('update_school', {
+        admin_id: req.user.user_id,
+        admin_username: req.user.username,
+        school_id: parseInt(id),
+        school_name: school_name
+      });
+
+      res.json({ 
+        success: true, 
+        data: schoolResult.rows[0],
+        message: 'School updated successfully'
+      });
+
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
     }
 
-    // Log activity to MongoDB
-    logActivity('update_school', {
-      school_id: parseInt(id),
-      school_name: school_name
-    });
-
-    res.json({ success: true, data: result.rows[0] });
   } catch (err) {
     console.error('Update school error:', err);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ 
+      success: false,
+      error: err.message || 'Failed to update school'
+    });
   }
 });
 

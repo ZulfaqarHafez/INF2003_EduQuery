@@ -1739,26 +1739,53 @@ window.showEditModal = function (school) {
     return;
   }
 
-  // Basic info
+  // Basic Information
   document.getElementById('editSchoolId').value = school.school_id || '';
   document.getElementById('editSchoolName').value = school.school_name || '';
-  document.getElementById('editPrincipalName').value = school.principal_name || '';
   document.getElementById('editAddress').value = school.address || '';
   document.getElementById('editPostalCode').value = school.postal_code || '';
   document.getElementById('editZoneCode').value = school.zone_code || '';
   document.getElementById('editMainlevelCode').value = school.mainlevel_code || '';
-
-  // Additional info
-  document.getElementById('editEmailAddress').value = school.email_address || '';
-  document.getElementById('editTelephoneNo').value = school.telephone_no || '';
+  
+  // School Classification
   document.getElementById('editTypeCode').value = school.type_code || '';
   document.getElementById('editNatureCode').value = school.nature_code || '';
   document.getElementById('editSessionCode').value = school.session_code || '';
+  document.getElementById('editDgpCode').value = school.dgp_code || '';
+
+  // Contact Information
+  document.getElementById('editEmailAddress').value = school.email_address || '';
+  document.getElementById('editTelephoneNo').value = school.telephone_no || '';
+  document.getElementById('editTelephoneNo2').value = school.telephone_no_2 || '';
+  document.getElementById('editFaxNo').value = school.fax_no || '';
+  document.getElementById('editUrlAddress').value = school.url_address || '';
+
+  // School Leadership
+  document.getElementById('editPrincipalName').value = school.principal_name || '';
+  document.getElementById('editFirstVpName').value = school.first_vp_name || '';
+  document.getElementById('editSecondVpName').value = school.second_vp_name || '';
+  document.getElementById('editThirdVpName').value = school.third_vp_name || '';
+  document.getElementById('editFourthVpName').value = school.fourth_vp_name || '';
+  document.getElementById('editFifthVpName').value = school.fifth_vp_name || '';
+  document.getElementById('editSixthVpName').value = school.sixth_vp_name || '';
+
+  // Special Programmes
+  document.getElementById('editAutonomousInd').value = school.autonomous_ind || '';
+  document.getElementById('editGiftedInd').value = school.gifted_ind || '';
+  document.getElementById('editIpInd').value = school.ip_ind || '';
+  document.getElementById('editSapInd').value = school.sap_ind || '';
+
+  // Mother Tongue Languages
+  document.getElementById('editMothertongue1Code').value = school.mothertongue1_code || '';
+  document.getElementById('editMothertongue2Code').value = school.mothertongue2_code || '';
+  document.getElementById('editMothertongue3Code').value = school.mothertongue3_code || '';
+
+  // Transportation
   document.getElementById('editMrtDesc').value = school.mrt_desc || '';
   document.getElementById('editBusDesc').value = school.bus_desc || '';
 
-  // Show modal – **only via class**, no inline display
-  modal.style.display = '';           // clear any previous inline styles
+  // Show modal
+  modal.style.display = '';
   modal.classList.add('active');
   document.body.style.overflow = 'hidden';
 };
@@ -1910,7 +1937,7 @@ window.toggleAdditionalInfo = function () {
 };
 
 // Edit/Update Operation - Now uses modal
-window.editSchool = function (school) {
+window.editSchool = async function (school) {
   // Check if user is admin
   if (!isUserAdmin()) {
     showToast('Admin privileges required to edit schools', 'error');
@@ -1918,29 +1945,86 @@ window.editSchool = function (school) {
   }
 
   console.log('Edit school clicked:', school);
-  showEditModal(school);
+  
+  // Show loading toast
+  showToast('Loading school details...', 'info');
+
+  try {
+    // Fetch complete school details including raw_general_info data
+    const response = await fetch(`/api/schools/${school.school_id}/details`);
+    const data = await response.json();
+
+    if (!data.success || !data.school) {
+      showToast('Failed to load school details', 'error');
+      return;
+    }
+
+    // Open modal with complete data
+    showEditModal(data.school);
+
+  } catch (error) {
+    console.error('Error loading school for edit:', error);
+    showToast('Failed to load school details: ' + error.message, 'error');
+  }
 };
 
 // Update Operation (form submission)
 window.updateSchool = async function (event) {
   event.preventDefault();
 
-  // Check if user is admin
   if (!isUserAdmin()) {
     showToast('Admin privileges required to edit schools', 'error');
     return;
   }
 
-  console.log('Updating school...');
+  console.log('Updating school with all fields...');
 
   const schoolId = document.getElementById('editSchoolId').value;
+  
   const updatedData = {
-    school_name: document.getElementById('editSchoolName').value,
-    address: document.getElementById('editAddress').value,
-    postal_code: document.getElementById('editPostalCode').value,
+    // Basic Information (Required)
+    school_name: document.getElementById('editSchoolName').value.trim(),
+    address: document.getElementById('editAddress').value.trim(),
+    postal_code: document.getElementById('editPostalCode').value.trim(),
     zone_code: document.getElementById('editZoneCode').value,
     mainlevel_code: document.getElementById('editMainlevelCode').value,
-    principal_name: document.getElementById('editPrincipalName').value
+    principal_name: document.getElementById('editPrincipalName').value.trim(),
+    
+    // School Classification
+    type_code: document.getElementById('editTypeCode').value || null,
+    nature_code: document.getElementById('editNatureCode').value || null,
+    session_code: document.getElementById('editSessionCode').value || null,
+    dgp_code: document.getElementById('editDgpCode').value.trim() || null,
+    
+    // Contact Information
+    email_address: document.getElementById('editEmailAddress').value.trim() || null,
+    telephone_no: document.getElementById('editTelephoneNo').value.trim() || null,
+    telephone_no_2: document.getElementById('editTelephoneNo2').value.trim() || null,
+    fax_no: document.getElementById('editFaxNo').value.trim() || null,
+    url_address: document.getElementById('editUrlAddress').value.trim() || null,
+    
+    // School Leadership
+    first_vp_name: document.getElementById('editFirstVpName').value.trim() || null,
+    second_vp_name: document.getElementById('editSecondVpName').value.trim() || null,
+    third_vp_name: document.getElementById('editThirdVpName').value.trim() || null,
+    fourth_vp_name: document.getElementById('editFourthVpName').value.trim() || null,
+    fifth_vp_name: document.getElementById('editFifthVpName').value.trim() || null,
+    sixth_vp_name: document.getElementById('editSixthVpName').value.trim() || null,
+    
+    // Special Programmes
+    autonomous_ind: document.getElementById('editAutonomousInd').value || null,
+    gifted_ind: document.getElementById('editGiftedInd').value || null,
+    ip_ind: document.getElementById('editIpInd').value || null,
+    sap_ind: document.getElementById('editSapInd').value || null,
+    
+    // Mother Tongue Languages
+    mothertongue1_code: document.getElementById('editMothertongue1Code').value || null,
+    mothertongue2_code: document.getElementById('editMothertongue2Code').value || null,
+    mothertongue3_code: document.getElementById('editMothertongue3Code').value || null,
+    
+    // Transportation
+    mrt_desc: document.getElementById('editMrtDesc').value.trim() || null,
+    bus_desc: document.getElementById('editBusDesc').value.trim() || null
   };
 
   console.log('Updated data:', updatedData);
@@ -1962,7 +2046,12 @@ window.updateSchool = async function (event) {
     if (result.success || res.ok) {
       showToast('✓ School updated successfully!', 'success');
       hideEditModal();
-      runQuery(); // Refresh results
+      
+      // Refresh results if there's an active search
+      const searchBox = document.getElementById('searchBox');
+      if (searchBox.value.trim()) {
+        setTimeout(() => runQuery(), 500);
+      }
     } else {
       showToast('Error: ' + (result.error || 'Failed to update school'), 'error');
     }
