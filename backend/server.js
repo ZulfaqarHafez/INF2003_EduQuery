@@ -264,33 +264,138 @@ app.get('/api/schools', async (req, res) => {
 });
 
 // CREATE - Add new school
-app.post('/api/schools', async (req, res) => {
+app.post('/api/schools', requireAuth, requireAdmin, async (req, res) => {
   try {
-    const { school_name, address, postal_code, zone_code, mainlevel_code, principal_name } = req.body;
+    const {
+      // Basic Information (Required)
+      school_name, address, postal_code, zone_code, mainlevel_code, principal_name,
+      
+      // School Classification
+      type_code, nature_code, session_code, dgp_code,
+      
+      // Contact Information
+      email_address, telephone_no, telephone_no_2, fax_no, url_address,
+      
+      // School Leadership
+      first_vp_name, second_vp_name, third_vp_name, fourth_vp_name, fifth_vp_name, sixth_vp_name,
+      
+      // Special Programmes
+      autonomous_ind, gifted_ind, ip_ind, sap_ind,
+      
+      // Mother Tongue Languages
+      mothertongue1_code, mothertongue2_code, mothertongue3_code,
+      
+      // Transportation
+      mrt_desc, bus_desc
+    } = req.body;
 
     // Validate required fields
     if (!school_name || !address || !postal_code || !zone_code || !mainlevel_code || !principal_name) {
-      return res.status(400).json({ error: 'All fields are required' });
+      return res.status(400).json({ 
+        success: false,
+        error: 'Required fields: school_name, address, postal_code, zone_code, mainlevel_code, principal_name' 
+      });
     }
 
-    // Insert into PostgreSQL
-    const result = await pool.query(
-      `INSERT INTO Schools (school_name, address, postal_code, zone_code, mainlevel_code, principal_name)
-       VALUES ($1, $2, $3, $4, $5, $6)
-       RETURNING *`,
-      [school_name, address, postal_code, zone_code, mainlevel_code, principal_name]
-    );
+    // Start a transaction
+    const client = await pool.connect();
+    
+    try {
+      await client.query('BEGIN');
 
-    // Log activity to MongoDB
-    logActivity('create_school', {
-      school_id: result.rows[0].school_id,
-      school_name: school_name
-    });
+      // 1. Insert into Schools table
+      const schoolResult = await client.query(
+        `INSERT INTO Schools (school_name, address, postal_code, zone_code, mainlevel_code, principal_name)
+         VALUES ($1, $2, $3, $4, $5, $6)
+         RETURNING school_id, school_name`,
+        [school_name, address, postal_code, zone_code, mainlevel_code, principal_name]
+      );
 
-    res.json({ success: true, data: result.rows[0] });
+      const newSchool = schoolResult.rows[0];
+      const schoolId = newSchool.school_id;
+
+      // 2. Insert into raw_general_info table (for additional fields)
+      await client.query(
+        `INSERT INTO raw_general_info (
+          school_name, address, postal_code, zone_code, mainlevel_code, principal_name,
+          type_code, nature_code, session_code, dgp_code,
+          email_address, telephone_no, telephone_no_2, fax_no, url_address,
+          first_vp_name, second_vp_name, third_vp_name, fourth_vp_name, fifth_vp_name, sixth_vp_name,
+          autonomous_ind, gifted_ind, ip_ind, sap_ind,
+          mothertongue1_code, mothertongue2_code, mothertongue3_code,
+          mrt_desc, bus_desc
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30)
+        ON CONFLICT (school_name) 
+        DO UPDATE SET
+          address = EXCLUDED.address,
+          postal_code = EXCLUDED.postal_code,
+          zone_code = EXCLUDED.zone_code,
+          mainlevel_code = EXCLUDED.mainlevel_code,
+          principal_name = EXCLUDED.principal_name,
+          type_code = EXCLUDED.type_code,
+          nature_code = EXCLUDED.nature_code,
+          session_code = EXCLUDED.session_code,
+          dgp_code = EXCLUDED.dgp_code,
+          email_address = EXCLUDED.email_address,
+          telephone_no = EXCLUDED.telephone_no,
+          telephone_no_2 = EXCLUDED.telephone_no_2,
+          fax_no = EXCLUDED.fax_no,
+          url_address = EXCLUDED.url_address,
+          first_vp_name = EXCLUDED.first_vp_name,
+          second_vp_name = EXCLUDED.second_vp_name,
+          third_vp_name = EXCLUDED.third_vp_name,
+          fourth_vp_name = EXCLUDED.fourth_vp_name,
+          fifth_vp_name = EXCLUDED.fifth_vp_name,
+          sixth_vp_name = EXCLUDED.sixth_vp_name,
+          autonomous_ind = EXCLUDED.autonomous_ind,
+          gifted_ind = EXCLUDED.gifted_ind,
+          ip_ind = EXCLUDED.ip_ind,
+          sap_ind = EXCLUDED.sap_ind,
+          mothertongue1_code = EXCLUDED.mothertongue1_code,
+          mothertongue2_code = EXCLUDED.mothertongue2_code,
+          mothertongue3_code = EXCLUDED.mothertongue3_code,
+          mrt_desc = EXCLUDED.mrt_desc,
+          bus_desc = EXCLUDED.bus_desc`,
+        [
+          school_name, address, postal_code, zone_code, mainlevel_code, principal_name,
+          type_code, nature_code, session_code, dgp_code,
+          email_address, telephone_no, telephone_no_2, fax_no, url_address,
+          first_vp_name, second_vp_name, third_vp_name, fourth_vp_name, fifth_vp_name, sixth_vp_name,
+          autonomous_ind, gifted_ind, ip_ind, sap_ind,
+          mothertongue1_code, mothertongue2_code, mothertongue3_code,
+          mrt_desc, bus_desc
+        ]
+      );
+
+      await client.query('COMMIT');
+
+      // Log activity to MongoDB
+      logActivity('create_school', {
+        admin_id: req.user.user_id,
+        admin_username: req.user.username,
+        school_id: schoolId,
+        school_name: school_name
+      });
+
+      res.json({ 
+        success: true, 
+        data: newSchool,
+        message: 'School created successfully'
+      });
+
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+
   } catch (err) {
     console.error('Create school error:', err);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ 
+      success: false,
+      error: err.message || 'Failed to create school'
+    });
   }
 });
 

@@ -1740,22 +1740,22 @@ window.showEditModal = function (school) {
   }
 
   // Basic info
-  document.getElementById('editSchoolId').value        = school.school_id || '';
-  document.getElementById('editSchoolName').value      = school.school_name || '';
-  document.getElementById('editPrincipalName').value   = school.principal_name || '';
-  document.getElementById('editAddress').value         = school.address || '';
-  document.getElementById('editPostalCode').value      = school.postal_code || '';
-  document.getElementById('editZoneCode').value        = school.zone_code || '';
-  document.getElementById('editMainlevelCode').value   = school.mainlevel_code || '';
+  document.getElementById('editSchoolId').value = school.school_id || '';
+  document.getElementById('editSchoolName').value = school.school_name || '';
+  document.getElementById('editPrincipalName').value = school.principal_name || '';
+  document.getElementById('editAddress').value = school.address || '';
+  document.getElementById('editPostalCode').value = school.postal_code || '';
+  document.getElementById('editZoneCode').value = school.zone_code || '';
+  document.getElementById('editMainlevelCode').value = school.mainlevel_code || '';
 
   // Additional info
-  document.getElementById('editEmailAddress').value    = school.email_address || '';
-  document.getElementById('editTelephoneNo').value     = school.telephone_no || '';
-  document.getElementById('editTypeCode').value        = school.type_code || '';
-  document.getElementById('editNatureCode').value      = school.nature_code || '';
-  document.getElementById('editSessionCode').value     = school.session_code || '';
-  document.getElementById('editMrtDesc').value         = school.mrt_desc || '';
-  document.getElementById('editBusDesc').value         = school.bus_desc || '';
+  document.getElementById('editEmailAddress').value = school.email_address || '';
+  document.getElementById('editTelephoneNo').value = school.telephone_no || '';
+  document.getElementById('editTypeCode').value = school.type_code || '';
+  document.getElementById('editNatureCode').value = school.nature_code || '';
+  document.getElementById('editSessionCode').value = school.session_code || '';
+  document.getElementById('editMrtDesc').value = school.mrt_desc || '';
+  document.getElementById('editBusDesc').value = school.bus_desc || '';
 
   // Show modal – **only via class**, no inline display
   modal.style.display = '';           // clear any previous inline styles
@@ -1793,6 +1793,7 @@ window.showDeleteModal = function (schoolId, schoolName) {
   }
 };
 
+// Close Delete Modal
 window.hideDeleteModal = function () {
   console.log('Closing delete modal');
   const modal = document.getElementById('deleteModal');
@@ -1804,7 +1805,7 @@ window.hideDeleteModal = function () {
   }
 };
 
-// Create Operation
+// Create Operation (form submission)
 window.addSchool = async function (event) {
   event.preventDefault();
 
@@ -1812,16 +1813,51 @@ window.addSchool = async function (event) {
     showToast('Admin privileges required to add schools', 'error');
     return;
   }
-
-  console.log('Adding school...');
-
+  // Collect all form data
   const schoolData = {
-    school_name: document.getElementById('schoolName').value,
-    address: document.getElementById('address').value,
-    postal_code: document.getElementById('postalCode').value,
+    // Basic Information (Required)
+    school_name: document.getElementById('schoolName').value.trim(),
+    address: document.getElementById('address').value.trim(),
+    postal_code: document.getElementById('postalCode').value.trim(),
     zone_code: document.getElementById('zoneCode').value,
     mainlevel_code: document.getElementById('mainlevelCode').value,
-    principal_name: document.getElementById('principalName').value
+    principal_name: document.getElementById('principalName').value.trim(),
+
+    // School Classification
+    type_code: document.getElementById('typeCode').value || null,
+    nature_code: document.getElementById('natureCode').value || null,
+    session_code: document.getElementById('sessionCode').value || null,
+    dgp_code: document.getElementById('dgpCode').value.trim() || null,
+
+    // Contact Information
+    email_address: document.getElementById('emailAddress').value.trim() || null,
+    telephone_no: document.getElementById('telephoneNo').value.trim() || null,
+    telephone_no_2: document.getElementById('telephoneNo2').value.trim() || null,
+    fax_no: document.getElementById('faxNo').value.trim() || null,
+    url_address: document.getElementById('urlAddress').value.trim() || null,
+
+    // School Leadership
+    first_vp_name: document.getElementById('firstVpName').value.trim() || null,
+    second_vp_name: document.getElementById('secondVpName').value.trim() || null,
+    third_vp_name: document.getElementById('thirdVpName').value.trim() || null,
+    fourth_vp_name: document.getElementById('fourthVpName').value.trim() || null,
+    fifth_vp_name: document.getElementById('fifthVpName').value.trim() || null,
+    sixth_vp_name: document.getElementById('sixthVpName').value.trim() || null,
+
+    // Special Programmes
+    autonomous_ind: document.getElementById('autonomousInd').value || null,
+    gifted_ind: document.getElementById('giftedInd').value || null,
+    ip_ind: document.getElementById('ipInd').value || null,
+    sap_ind: document.getElementById('sapInd').value || null,
+
+    // Mother Tongue Languages
+    mothertongue1_code: document.getElementById('mothertongue1Code').value || null,
+    mothertongue2_code: document.getElementById('mothertongue2Code').value || null,
+    mothertongue3_code: document.getElementById('mothertongue3Code').value || null,
+
+    // Transportation
+    mrt_desc: document.getElementById('mrtDesc').value.trim() || null,
+    bus_desc: document.getElementById('busDesc').value.trim() || null
   };
 
   console.log('School data:', schoolData);
@@ -1846,6 +1882,7 @@ window.addSchool = async function (event) {
       hideAddModal();
       loadSchoolStats();
 
+      // Refresh search results if there's an active search
       const searchBox = document.getElementById('searchBox');
       if (searchBox.value.trim()) {
         setTimeout(() => runQuery(), 500);
@@ -1859,10 +1896,10 @@ window.addSchool = async function (event) {
   }
 };
 
-window.toggleAdditionalInfo = function() {
+window.toggleAdditionalInfo = function () {
   const section = document.getElementById('additionalInfoSection');
   const icon = document.getElementById('additionalInfoIcon');
-  
+
   if (section.style.display === 'none') {
     section.style.display = 'block';
     icon.style.transform = 'rotate(180deg)';
@@ -2147,6 +2184,7 @@ function displayEnhancedSchoolModal(data) {
   }
 }
 
+
 // ========== SCHOOL COMPARISON FUNCTIONS ==========
 // Comparison state
 let comparisonMode = {
@@ -2300,7 +2338,7 @@ function selectSchoolForComparison(element, schoolId) {
 
 function extractSchoolName(element) {
   // Try different methods to extract school name based on element type
-  
+
   // Method 1: For table rows - look for school_name in the cells
   if (element.tagName === 'TR') {
     // Try to find the cell with school name (usually second cell after school_id)
@@ -2313,7 +2351,7 @@ function extractSchoolName(element) {
       }
     }
   }
-  
+
   // Method 2: Look for strong tag (used in many result displays)
   const strong = element.querySelector('strong');
   if (strong) return strong.textContent.trim();
@@ -3299,28 +3337,28 @@ function showToast(message, type = 'info') {
   }, 3000);
 }
 
-window.showRecentSchools = async function() {
+window.showRecentSchools = async function () {
   if (!isUserAdmin()) {
     showToast('Admin access required', 'error');
     return;
   }
-  
+
   showToast('Loading recent schools...', 'info');
-  
+
   try {
     const response = await fetch('/api/schools/recent', {
       headers: getAuthHeaders()
     });
-    
+
     const data = await response.json();
-    
+
     if (!data.success || !data.schools || data.schools.length === 0) {
       showToast('No recent schools found', 'info');
       return;
     }
-    
+
     displayRecentSchoolsModal(data.schools);
-    
+
   } catch (error) {
     console.error('Failed to load recent schools:', error);
     showToast('Failed to load recent schools', 'error');
@@ -3339,7 +3377,7 @@ function displayRecentSchoolsModal(schools) {
         <div class="modal-body" style="padding: 1.5rem; max-height: 60vh; overflow-y: auto;">
           <div style="display: flex; flex-direction: column; gap: 1rem;">
   `;
-  
+
   schools.forEach(school => {
     html += `
       <div class="recent-school-item" 
@@ -3361,31 +3399,31 @@ function displayRecentSchoolsModal(schools) {
       </div>
     `;
   });
-  
+
   html += `
           </div>
         </div>
       </div>
     </div>
   `;
-  
+
   document.body.insertAdjacentHTML('beforeend', html);
   document.body.style.overflow = 'hidden';
-  
+
   // Add hover effect
   document.querySelectorAll('.recent-school-item').forEach(item => {
-    item.addEventListener('mouseenter', function() {
+    item.addEventListener('mouseenter', function () {
       this.style.backgroundColor = '#F9FAFB';
       this.style.borderColor = '#3B82F6';
     });
-    item.addEventListener('mouseleave', function() {
+    item.addEventListener('mouseleave', function () {
       this.style.backgroundColor = '';
       this.style.borderColor = '#E5E7EB';
     });
   });
 }
 
-window.closeRecentSchoolsModal = function() {
+window.closeRecentSchoolsModal = function () {
   const modal = document.getElementById('recentSchoolsModal');
   if (modal) {
     modal.remove();
