@@ -553,7 +553,7 @@
   <!-- Add School Modal -->
   <div id="addModal" class="modal">
     <div class="modal-overlay" onclick="hideAddModal()"></div>
-    <div class="modal-content" style="max-width: 1000px; max-height: 90vh; overflow-y: auto;">
+    <div class="modal-content">
       <div class="modal-header">
         <h3>Add New School</h3>
         <button class="modal-close" onclick="hideAddModal()">
@@ -565,298 +565,120 @@
       </div>
 
       <form id="addSchoolForm" onsubmit="addSchool(event)">
-        <div class="detail-modal-content" style="padding: 1.5rem;">
-
-          <!-- BASIC INFORMATION -->
-          <h4 style="margin-bottom: 1rem; color: #1F2937; border-bottom: 2px solid #3B82F6; padding-bottom: 0.5rem;">
-            Basic Information
+        <div class="form-grid">
+          <!-- MAIN INFORMATION -->
+          <h4
+            style="grid-column: 1 / -1; margin: 0 0 1rem 0; color: #1F2937; border-bottom: 2px solid #3B82F6; padding-bottom: 0.5rem;">
+            Main Information (Required)
           </h4>
-          <div class="form-grid">
-            <div class="form-group">
-              <label for="schoolName">School Name *</label>
-              <input type="text" id="schoolName" required placeholder="e.g., Anderson Secondary School">
+
+          <div class="form-group">
+            <label for="schoolName">School Name *</label>
+            <input type="text" id="schoolName" required placeholder="e.g., Anderson Secondary School">
+          </div>
+
+          <div class="form-group">
+            <label for="principalName">Principal Name *</label>
+            <input type="text" id="principalName" required placeholder="e.g., Mrs. Tan Bee Leng">
+          </div>
+
+          <div class="form-group full-width">
+            <label for="address">Address *</label>
+            <input type="text" id="address" required placeholder="e.g., 4650 Ang Mo Kio Avenue 6">
+          </div>
+
+          <div class="form-group">
+            <label for="postalCode">Postal Code *</label>
+            <input type="text" id="postalCode" required pattern="[0-9]{6}" placeholder="e.g., 569842">
+            <span class="form-hint">6 digits</span>
+          </div>
+
+          <div class="form-group">
+            <label for="zoneCode">Zone Code *</label>
+            <select id="zoneCode" required>
+              <option value="">Select zone...</option>
+              <option value="NORTH">North</option>
+              <option value="SOUTH">South</option>
+              <option value="EAST">East</option>
+              <option value="WEST">West</option>
+              <option value="CENTRAL">Central</option>
+            </select>
+          </div>
+
+          <div class="form-group full-width">
+            <label for="mainlevelCode">Main Level *</label>
+            <select id="mainlevelCode" required>
+              <option value="">Select level...</option>
+              <option value="PRIMARY">Primary</option>
+              <option value="SECONDARY">Secondary</option>
+              <option value="JUNIOR COLLEGE">Junior College</option>
+              <option value="CENTRALISED INSTITUTE">Centralised Institute</option>
+            </select>
+          </div>
+
+          <!-- ADDITIONAL INFORMATION (EXPANDABLE) -->
+          <div class="form-group full-width" style="margin-top: 1.5rem;">
+            <button type="button" class="btn-secondary" onclick="toggleAdditionalInfo()"
+              style="width: 100%; display: flex; align-items: center; justify-content: space-between;">
+              <span>Additional Information (Optional)</span>
+              <svg id="additionalInfoIcon" width="20" height="20" viewBox="0 0 20 20" fill="currentColor"
+                style="transition: transform 0.3s;">
+                <path fill-rule="evenodd"
+                  d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" />
+              </svg>
+            </button>
+          </div>
+
+          <div id="additionalInfoSection" style="display: none; grid-column: 1 / -1;">
+            <div class="form-grid">
+              <div class="form-group">
+                <label for="emailAddress">Email Address</label>
+                <input type="email" id="emailAddress" placeholder="e.g., school@moe.edu.sg">
+              </div>
+
+              <div class="form-group">
+                <label for="telephoneNo">Telephone Number</label>
+                <input type="text" id="telephoneNo" placeholder="e.g., 6XXXXXXX">
+              </div>
+
+              <div class="form-group">
+                <label for="typeCode">School Type</label>
+                <input type="text" id="typeCode" placeholder="e.g., GOVERNMENT">
+              </div>
+
+              <div class="form-group">
+                <label for="natureCode">Nature Code</label>
+                <input type="text" id="natureCode" placeholder="e.g., CO-ED">
+              </div>
+
+              <div class="form-group">
+                <label for="sessionCode">Session Code</label>
+                <input type="text" id="sessionCode" placeholder="e.g., AM/PM">
+              </div>
+
+              <div class="form-group">
+                <label for="mrtDesc">Nearest MRT</label>
+                <input type="text" id="mrtDesc" placeholder="e.g., Ang Mo Kio">
+              </div>
+
+              <div class="form-group full-width">
+                <label for="busDesc">Bus Services</label>
+                <input type="text" id="busDesc" placeholder="e.g., 123, 456, 789">
+              </div>
             </div>
+          </div>
+        </div>
 
-            <div class="form-group">
-              <label for="mainlevelCode">Main Level *</label>
-              <select id="mainlevelCode" required>
-                <option value="">Select level...</option>
-                <option value="PRIMARY">Primary</option>
-                <option value="SECONDARY">Secondary</option>
-                <option value="MIXED">Mixed</option>
-                <option value="JUNIOR COLLEGE">Junior College</option>
-                <option value="CENTRALISED INSTITUTE">Centralised Institute</option>
-              </select>
-            </div>
-
-            <div class="form-group full-width">
-              <label for="address">Address *</label>
-              <input type="text" id="address" required placeholder="e.g., 4650 Ang Mo Kio Avenue 6">
-            </div>
-
-            <div class="form-group">
-              <label for="postalCode">Postal Code *</label>
-              <input type="text" id="postalCode" required pattern="[0-9]{6}" placeholder="e.g., 569842" maxlength="6">
-              <span class="form-hint">6 digits</span>
-            </div>
-
-            <div class="form-group">
-              <label for="zoneCode">Zone Code *</label>
-              <select id="zoneCode" required>
-                <option value="">Select zone...</option>
-                <option value="NORTH">North</option>
-                <option value="SOUTH">South</option>
-                <option value="EAST">East</option>
-                <option value="WEST">West</option>
-                <option value="CENTRAL">Central</option>
-              </select>
-            </div>
-
-            <div class="form-group">
-              <label for="typeCode">School Type</label>
-              <select id="typeCode"><!-- School Classification Section with Dynamic Dropdowns -->
-                <div class="form-grid">
-                  <div class="form-group">
-                    <label for="typeCode">School Type</label>
-                    <select id="typeCode">
-                      <option value="">Select type...</option>
-                      <!-- Options loaded dynamically from database -->
-                    </select>
-                  </div>
-
-                  <div class="form-group">
-                    <label for="natureCode">Nature Code</label>
-                    <select id="natureCode">
-                      <option value="">Select nature...</option>
-                      <!-- Options loaded dynamically from database -->
-                    </select>
-                  </div>
-
-                  <div class="form-group">
-                    <label for="sessionCode">Session Code</label>
-                    <select id="sessionCode">
-                      <option value="">Select session...</option>
-                      <!-- Options loaded dynamically from database -->
-                    </select>
-                  </div>
-
-                  <div class="form-group">
-                    <label for="dgpCode">DGP Code</label>
-                    <select id="dgpCode">
-                      <option value="">Select DGP code...</option>
-                      <!-- Options loaded dynamically from database -->
-                    </select>
-                  </div>
-                </div>
-
-                <hr style="margin: 1.5rem 0; border: none; border-top: 1px solid #E5E7EB;">
-
-                <!-- CONTACT INFORMATION -->
-                <h4
-                  style="margin-bottom: 1rem; color: #1F2937; border-bottom: 2px solid #F59E0B; padding-bottom: 0.5rem;">
-                  Contact Information
-                </h4>
-                <div class="form-grid">
-                  <div class="form-group">
-                    <label for="emailAddress">Email Address</label>
-                    <input type="email" id="emailAddress" placeholder="e.g., school@moe.edu.sg">
-                  </div>
-
-                  <div class="form-group">
-                    <label for="telephoneNo">Telephone Number</label>
-                    <input type="text" id="telephoneNo" placeholder="e.g., 6XXXXXXX">
-                  </div>
-
-                  <div class="form-group">
-                    <label for="telephoneNo2">Telephone Number 2</label>
-                    <input type="text" id="telephoneNo2" placeholder="Second phone number">
-                  </div>
-
-                  <div class="form-group">
-                    <label for="faxNo">Fax Number</label>
-                    <input type="text" id="faxNo" placeholder="Fax number">
-                  </div>
-
-                  <div class="form-group full-width">
-                    <label for="urlAddress">Website URL</label>
-                    <input type="url" id="urlAddress" placeholder="https://school.moe.edu.sg">
-                  </div>
-                </div>
-
-                <hr style="margin: 1.5rem 0; border: none; border-top: 1px solid #E5E7EB;">
-
-                <!-- SCHOOL LEADERSHIP -->
-                <h4
-                  style="margin-bottom: 1rem; color: #1F2937; border-bottom: 2px solid #10B981; padding-bottom: 0.5rem;">
-                  School Leadership
-                </h4>
-                <div class="form-grid">
-                  <div class="form-group">
-                    <label for="principalName">Principal Name *</label>
-                    <input type="text" id="principalName" required placeholder="e.g., Mrs. Tan Bee Leng">
-                  </div>
-
-                  <div class="form-group">
-                    <label for="firstVpName">Vice Principal 1</label>
-                    <input type="text" id="firstVpName" placeholder="First VP name">
-                  </div>
-
-                  <div class="form-group">
-                    <label for="secondVpName">Vice Principal 2</label>
-                    <input type="text" id="secondVpName" placeholder="Second VP name">
-                  </div>
-
-                  <div class="form-group">
-                    <label for="thirdVpName">Vice Principal 3</label>
-                    <input type="text" id="thirdVpName" placeholder="Third VP name">
-                  </div>
-
-                  <div class="form-group">
-                    <label for="fourthVpName">Vice Principal 4</label>
-                    <input type="text" id="fourthVpName" placeholder="Fourth VP name">
-                  </div>
-
-                  <div class="form-group">
-                    <label for="fifthVpName">Vice Principal 5</label>
-                    <input type="text" id="fifthVpName" placeholder="Fifth VP name">
-                  </div>
-
-                  <div class="form-group">
-                    <label for="sixthVpName">Vice Principal 6</label>
-                    <input type="text" id="sixthVpName" placeholder="Sixth VP name">
-                  </div>
-                </div>
-
-                <hr style="margin: 1.5rem 0; border: none; border-top: 1px solid #E5E7EB;">
-
-                <!-- SPECIAL PROGRAMMES -->
-                <h4
-                  style="margin-bottom: 1rem; color: #1F2937; border-bottom: 2px solid #8B5CF6; padding-bottom: 0.5rem;">
-                  Special Programmes
-                </h4>
-                <div class="form-grid">
-                  <div class="form-group">
-                    <label for="autonomousInd">Autonomous School</label>
-                    <select id="autonomousInd">
-                      <option value="">Select...</option>
-                      <option value="Yes">Yes</option>
-                      <option value="No">No</option>
-                    </select>
-                  </div>
-
-                  <div class="form-group">
-                    <label for="giftedInd">Gifted Programme</label>
-                    <select id="giftedInd">
-                      <option value="">Select...</option>
-                      <option value="Yes">Yes</option>
-                      <option value="No">No</option>
-                    </select>
-                  </div>
-
-                  <div class="form-group">
-                    <label for="ipInd">Integrated Programme</label>
-                    <select id="ipInd">
-                      <option value="">Select...</option>
-                      <option value="Yes">Yes</option>
-                      <option value="No">No</option>
-                    </select>
-                  </div>
-
-                  <div class="form-group">
-                    <label for="sapInd">SAP School</label>
-                    <select id="sapInd">
-                      <option value="">Select...</option>
-                      <option value="Yes">Yes</option>
-                      <option value="No">No</option>
-                    </select>
-                  </div>
-                </div>
-
-                <hr style="margin: 1.5rem 0; border: none; border-top: 1px solid #E5E7EB;">
-
-                <!-- MOTHER TONGUE LANGUAGES -->
-                <h4
-                  style="margin-bottom: 1rem; color: #1F2937; border-bottom: 2px solid #EC4899; padding-bottom: 0.5rem;">
-                  Mother Tongue Languages
-                </h4>
-                <div class="form-grid">
-                  <div class="form-group">
-                    <label for="mothertongue1Code">Mother Tongue 1</label>
-                    <select id="mothertongue1Code">
-                      <option value="">Select...</option>
-                      <option value="Chinese">Chinese</option>
-                      <option value="Malay">Malay</option>
-                      <option value="Tamil">Tamil</option>
-                      <option value="Hindi">Hindi</option>
-                      <option value="Bengali">Bengali</option>
-                      <option value="Gujarati">Gujarati</option>
-                      <option value="Punjabi">Punjabi</option>
-                      <option value="Urdu">Urdu</option>
-                    </select>
-                  </div>
-
-                  <div class="form-group">
-                    <label for="mothertongue2Code">Mother Tongue 2</label>
-                    <select id="mothertongue2Code">
-                      <option value="">Select...</option>
-                      <option value="Chinese">Chinese</option>
-                      <option value="Malay">Malay</option>
-                      <option value="Tamil">Tamil</option>
-                      <option value="Hindi">Hindi</option>
-                      <option value="Bengali">Bengali</option>
-                      <option value="Gujarati">Gujarati</option>
-                      <option value="Punjabi">Punjabi</option>
-                      <option value="Urdu">Urdu</option>
-                    </select>
-                  </div>
-
-                  <div class="form-group">
-                    <label for="mothertongue3Code">Mother Tongue 3</label>
-                    <select id="mothertongue3Code">
-                      <option value="">Select...</option>
-                      <option value="Chinese">Chinese</option>
-                      <option value="Malay">Malay</option>
-                      <option value="Tamil">Tamil</option>
-                      <option value="Hindi">Hindi</option>
-                      <option value="Bengali">Bengali</option>
-                      <option value="Gujarati">Gujarati</option>
-                      <option value="Punjabi">Punjabi</option>
-                      <option value="Urdu">Urdu</option>
-                    </select>
-                  </div>
-                </div>
-
-                <hr style="margin: 1.5rem 0; border: none; border-top: 1px solid #E5E7EB;">
-
-                <!-- TRANSPORTATION -->
-                <h4
-                  style="margin-bottom: 1rem; color: #1F2937; border-bottom: 2px solid #EF4444; padding-bottom: 0.5rem;">
-                  Transportation
-                </h4>
-                <div class="form-grid">
-                  <div class="form-group full-width">
-                    <label for="mrtDesc">MRT Description</label>
-                    <input type="text" id="mrtDesc" placeholder="e.g., Ang Mo Kio MRT">
-                  </div>
-
-                  <div class="form-group full-width">
-                    <label for="busDesc">Bus Services</label>
-                    <input type="text" id="busDesc" placeholder="e.g., 123, 456, 789">
-                  </div>
-                </div>
-
-            </div>
-
-            <div class="modal-footer">
-              <button type="button" class="btn-secondary" onclick="hideAddModal()">Cancel</button>
-              <button type="submit" class="btn-primary">
-                <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
-                  <path
-                    d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" />
-                </svg>
-                Save School
-              </button>
-            </div>
+        <div class="modal-footer">
+          <button type="button" class="btn-secondary" onclick="hideAddModal()">Cancel</button>
+          <button type="submit" class="btn-primary">
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+              <path
+                d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" />
+            </svg>
+            Save School
+          </button>
+        </div>
       </form>
     </div>
   </div>
@@ -871,7 +693,9 @@
         <button class="modal-close" type="button" onclick="hideEditModal()">
           <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
             <path fill-rule="evenodd"
-              d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
+              d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 
+                4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 
+                4.293 5.707a1 1 0 010-1.414z"
               clip-rule="evenodd" />
           </svg>
         </button>
@@ -882,10 +706,8 @@
 
         <div class="detail-modal-content" style="padding: 1.5rem;">
 
-          <!-- BASIC INFORMATION -->
-          <h4 style="margin-bottom: 1rem; color: #1F2937; border-bottom: 2px solid #3B82F6; padding-bottom: 0.5rem;">
-            Basic Information
-          </h4>
+          <!-- BASIC INFORMATION (matches view card) -->
+          <h4 class="section-title">Basic Information</h4>
           <div class="form-grid">
             <div class="form-group">
               <label for="editSchoolName">School Name *</label>
@@ -957,19 +779,12 @@
                 <option value="DOUBLE SESSION">Double Session</option>
               </select>
             </div>
-
-            <div class="form-group">
-              <label for="editDgpCode">DGP Code</label>
-              <input type="text" id="editDgpCode" />
-            </div>
           </div>
 
-          <hr style="margin: 1.5rem 0; border: none; border-top: 1px solid #E5E7EB;">
+          <hr class="modal-divider" />
 
-          <!-- CONTACT INFORMATION -->
-          <h4 style="margin-bottom: 1rem; color: #1F2937; border-bottom: 2px solid #F59E0B; padding-bottom: 0.5rem;">
-            Contact Information
-          </h4>
+          <!-- CONTACT INFORMATION (matches view card) -->
+          <h4 class="section-title">Contact Information</h4>
           <div class="form-grid">
             <div class="form-group">
               <label for="editEmailAddress">Email Address</label>
@@ -980,33 +795,16 @@
               <label for="editTelephoneNo">Telephone No.</label>
               <input type="text" id="editTelephoneNo" />
             </div>
-
-            <div class="form-group">
-              <label for="editTelephoneNo2">Telephone No. 2</label>
-              <input type="text" id="editTelephoneNo2" />
-            </div>
-
-            <div class="form-group">
-              <label for="editFaxNo">Fax Number</label>
-              <input type="text" id="editFaxNo" />
-            </div>
-
-            <div class="form-group full-width">
-              <label for="editUrlAddress">Website URL</label>
-              <input type="url" id="editUrlAddress" />
-            </div>
           </div>
 
-          <hr style="margin: 1.5rem 0; border: none; border-top: 1px solid #E5E7EB;">
+          <hr class="modal-divider" />
 
           <!-- SCHOOL LEADERSHIP -->
-          <h4 style="margin-bottom: 1rem; color: #1F2937; border-bottom: 2px solid #10B981; padding-bottom: 0.5rem;">
-            School Leadership
-          </h4>
+          <h4 class="section-title">School Leadership</h4>
           <div class="form-grid">
             <div class="form-group">
-              <label for="editPrincipalName">Principal *</label>
-              <input type="text" id="editPrincipalName" required />
+              <label for="editPrincipalName">Principal</label>
+              <input type="text" id="editPrincipalName" />
             </div>
 
             <div class="form-group">
@@ -1033,116 +831,12 @@
               <label for="editFifthVpName">Vice Principal 5</label>
               <input type="text" id="editFifthVpName" />
             </div>
-
-            <div class="form-group">
-              <label for="editSixthVpName">Vice Principal 6</label>
-              <input type="text" id="editSixthVpName" />
-            </div>
           </div>
 
-          <hr style="margin: 1.5rem 0; border: none; border-top: 1px solid #E5E7EB;">
+          <hr class="modal-divider" />
 
-          <!-- SPECIAL PROGRAMMES -->
-          <h4 style="margin-bottom: 1rem; color: #1F2937; border-bottom: 2px solid #8B5CF6; padding-bottom: 0.5rem;">
-            Special Programmes
-          </h4>
-          <div class="form-grid">
-            <div class="form-group">
-              <label for="editAutonomousInd">Autonomous School</label>
-              <select id="editAutonomousInd">
-                <option value="">Select...</option>
-                <option value="Yes">Yes</option>
-                <option value="No">No</option>
-              </select>
-            </div>
-
-            <div class="form-group">
-              <label for="editGiftedInd">Gifted Programme</label>
-              <select id="editGiftedInd">
-                <option value="">Select...</option>
-                <option value="Yes">Yes</option>
-                <option value="No">No</option>
-              </select>
-            </div>
-
-            <div class="form-group">
-              <label for="editIpInd">Integrated Programme</label>
-              <select id="editIpInd">
-                <option value="">Select...</option>
-                <option value="Yes">Yes</option>
-                <option value="No">No</option>
-              </select>
-            </div>
-
-            <div class="form-group">
-              <label for="editSapInd">SAP School</label>
-              <select id="editSapInd">
-                <option value="">Select...</option>
-                <option value="Yes">Yes</option>
-                <option value="No">No</option>
-              </select>
-            </div>
-          </div>
-
-          <hr style="margin: 1.5rem 0; border: none; border-top: 1px solid #E5E7EB;">
-
-          <!-- MOTHER TONGUE LANGUAGES -->
-          <h4 style="margin-bottom: 1rem; color: #1F2937; border-bottom: 2px solid #EC4899; padding-bottom: 0.5rem;">
-            Mother Tongue Languages
-          </h4>
-          <div class="form-grid">
-            <div class="form-group">
-              <label for="editMothertongue1Code">Mother Tongue 1</label>
-              <select id="editMothertongue1Code">
-                <option value="">Select...</option>
-                <option value="Chinese">Chinese</option>
-                <option value="Malay">Malay</option>
-                <option value="Tamil">Tamil</option>
-                <option value="Hindi">Hindi</option>
-                <option value="Bengali">Bengali</option>
-                <option value="Gujarati">Gujarati</option>
-                <option value="Punjabi">Punjabi</option>
-                <option value="Urdu">Urdu</option>
-              </select>
-            </div>
-
-            <div class="form-group">
-              <label for="editMothertongue2Code">Mother Tongue 2</label>
-              <select id="editMothertongue2Code">
-                <option value="">Select...</option>
-                <option value="Chinese">Chinese</option>
-                <option value="Malay">Malay</option>
-                <option value="Tamil">Tamil</option>
-                <option value="Hindi">Hindi</option>
-                <option value="Bengali">Bengali</option>
-                <option value="Gujarati">Gujarati</option>
-                <option value="Punjabi">Punjabi</option>
-                <option value="Urdu">Urdu</option>
-              </select>
-            </div>
-
-            <div class="form-group">
-              <label for="editMothertongue3Code">Mother Tongue 3</label>
-              <select id="editMothertongue3Code">
-                <option value="">Select...</option>
-                <option value="Chinese">Chinese</option>
-                <option value="Malay">Malay</option>
-                <option value="Tamil">Tamil</option>
-                <option value="Hindi">Hindi</option>
-                <option value="Bengali">Bengali</option>
-                <option value="Gujarati">Gujarati</option>
-                <option value="Punjabi">Punjabi</option>
-                <option value="Urdu">Urdu</option>
-              </select>
-            </div>
-          </div>
-
-          <hr style="margin: 1.5rem 0; border: none; border-top: 1px solid #E5E7EB;">
-
-          <!-- TRANSPORTATION -->
-          <h4 style="margin-bottom: 1rem; color: #1F2937; border-bottom: 2px solid #EF4444; padding-bottom: 0.5rem;">
-            Transportation
-          </h4>
+          <!-- TRANSPORTATION (matches view card) -->
+          <h4 class="section-title">Transportation</h4>
           <div class="form-grid">
             <div class="form-group full-width">
               <label for="editMrtDesc">MRT Description</label>
@@ -1169,6 +863,7 @@
       </form>
     </div>
   </div>
+
 
   <!-- Delete Confirmation Modal -->
   <div id="deleteModal" class="modal">
@@ -1291,7 +986,6 @@
                   <option value="">All Levels</option>
                   <option value="PRIMARY">Primary</option>
                   <option value="SECONDARY">Secondary</option>
-                  <option value="MIXED">Mixed</option>
                   <option value="JUNIOR COLLEGE">Junior College</option>
                   <option value="CENTRALISED INSTITUTE">Centralised Institute</option>
                 </select>
@@ -1299,42 +993,32 @@
 
               <div class="form-group">
                 <label for="adv_type_code">School Type</label>
-                <select id="adv_type_code">
-                  <option value="">Any Type</option>
-                  <!-- Options loaded dynamically from database -->
-                </select>
+                <input type="text" id="adv_type_code" placeholder="e.g., GOVERNMENT">
               </div>
 
               <div class="form-group">
                 <label for="adv_nature_code">Nature Code</label>
-                <select id="adv_nature_code">
-                  <option value="">Any Nature</option>
-                  <!-- Options loaded dynamically from database -->
-                </select>
+                <input type="text" id="adv_nature_code" placeholder="e.g., CO-ED">
+              </div>
+
+              <div class="form-group">
+                <label for="adv_school_section">School Section</label>
+                <input type="text" id="adv_school_section" placeholder="e.g., MAINSTREAM">
               </div>
 
               <div class="form-group">
                 <label for="adv_session_code">Session Code</label>
-                <select id="adv_session_code">
-                  <option value="">Any Session</option>
-                  <!-- Options loaded dynamically from database -->
-                </select>
+                <input type="text" id="adv_session_code" placeholder="e.g., AM/PM">
               </div>
 
               <div class="form-group">
                 <label for="adv_dgp_code">DGP Code</label>
-                <select id="adv_dgp_code">
-                  <option value="">Any DGP Code</option>
-                  <!-- Options loaded dynamically from database -->
-                </select>
+                <input type="text" id="adv_dgp_code" placeholder="DGP classification">
               </div>
 
               <div class="form-group">
-                <label for="adv_mothertongue_code">Mother Tongue Language</label>
-                <select id="adv_mothertongue_code">
-                  <option value="">Any Language</option>
-                  <!-- Options loaded dynamically from database -->
-                </select>
+                <label for="adv_mothertongue_code">Mother Tongue Code</label>
+                <input type="text" id="adv_mothertongue_code" placeholder="e.g., Malay/Chinese/Tamil">
               </div>
             </div>
           </div>
@@ -1392,10 +1076,7 @@
             <div class="form-grid">
               <div class="form-group">
                 <label for="adv_alp_domain">ALP Domain</label>
-                <select id="adv_alp_domain">
-                  <option value="">Any ALP Domain</option>
-                  <!-- Options loaded dynamically from database -->
-                </select>
+                <input type="text" id="adv_alp_domain" placeholder="e.g., Science, Technology">
               </div>
 
               <div class="form-group full-width">
@@ -1411,10 +1092,7 @@
             <div class="form-grid">
               <div class="form-group">
                 <label for="adv_llp_domain1">LLP Domain</label>
-                <select id="adv_llp_domain1">
-                  <option value="">Any LLP Domain</option>
-                  <!-- Options loaded dynamically from database -->
-                </select>
+                <input type="text" id="adv_llp_domain1" placeholder="e.g., Sports, Arts">
               </div>
 
               <div class="form-group full-width">
@@ -1445,10 +1123,7 @@
 
               <div class="form-group full-width">
                 <label for="adv_cca_grouping_desc">CCA Grouping</label>
-                <select id="adv_cca_grouping_desc">
-                  <option value="">Any CCA Group</option>
-                  <!-- Options loaded dynamically from database -->
-                </select>
+                <input type="text" id="adv_cca_grouping_desc" placeholder="e.g., Sports, Clubs & Societies">
               </div>
             </div>
           </div>

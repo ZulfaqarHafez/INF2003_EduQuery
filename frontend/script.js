@@ -1,6 +1,5 @@
 let pendingDeleteId = null;
 let pendingDeleteName = null;
-const originalShowEditModal = window.showEditModal;
 
 // ========== ADMIN AUTHENTICATION MANAGEMENT ==========
 
@@ -1701,6 +1700,7 @@ window.clearSearch = function () {
 
 // Add Modal Management
 window.showAddModal = function () {
+  // Check if user is admin before showing modal
   if (!isUserAdmin()) {
     showToast('Admin privileges required to add schools', 'error');
     return;
@@ -1711,9 +1711,6 @@ window.showAddModal = function () {
   if (modal) {
     modal.classList.add('active');
     document.body.style.overflow = 'hidden';
-    
-    // Load dynamic dropdowns
-    loadAddEditDropdowns();
   } else {
     console.error('Modal not found');
   }
@@ -1730,16 +1727,41 @@ window.hideAddModal = function () {
 };
 
 // Edit Modal Management
-window.showEditModal = function(school) {
-  // Load dropdowns first
-  loadAddEditDropdowns();
-  
-  // Small delay to ensure dropdowns are populated before setting values
-  setTimeout(() => {
-    originalShowEditModal(school);
-  }, 100);
-};
+window.showEditModal = function (school) {
+  if (!isUserAdmin()) {
+    showToast('Admin privileges required to edit schools', 'error');
+    return;
+  }
 
+  const modal = document.getElementById('editModal');
+  if (!modal) {
+    console.error('Edit modal not found');
+    return;
+  }
+
+  // Basic info
+  document.getElementById('editSchoolId').value        = school.school_id || '';
+  document.getElementById('editSchoolName').value      = school.school_name || '';
+  document.getElementById('editPrincipalName').value   = school.principal_name || '';
+  document.getElementById('editAddress').value         = school.address || '';
+  document.getElementById('editPostalCode').value      = school.postal_code || '';
+  document.getElementById('editZoneCode').value        = school.zone_code || '';
+  document.getElementById('editMainlevelCode').value   = school.mainlevel_code || '';
+
+  // Additional info
+  document.getElementById('editEmailAddress').value    = school.email_address || '';
+  document.getElementById('editTelephoneNo').value     = school.telephone_no || '';
+  document.getElementById('editTypeCode').value        = school.type_code || '';
+  document.getElementById('editNatureCode').value      = school.nature_code || '';
+  document.getElementById('editSessionCode').value     = school.session_code || '';
+  document.getElementById('editMrtDesc').value         = school.mrt_desc || '';
+  document.getElementById('editBusDesc').value         = school.bus_desc || '';
+
+  // Show modal – **only via class**, no inline display
+  modal.style.display = '';           // clear any previous inline styles
+  modal.classList.add('active');
+  document.body.style.overflow = 'hidden';
+};
 
 window.hideEditModal = function () {
   console.log('Closing edit modal');
@@ -1750,6 +1772,8 @@ window.hideEditModal = function () {
     document.body.style.overflow = 'auto';
   }
 };
+
+
 
 // Delete Modal Management
 window.showDeleteModal = function (schoolId, schoolName) {
@@ -1771,7 +1795,6 @@ window.showDeleteModal = function (schoolId, schoolName) {
   }
 };
 
-// Close Delete Modal
 window.hideDeleteModal = function () {
   console.log('Closing delete modal');
   const modal = document.getElementById('deleteModal');
@@ -1783,7 +1806,7 @@ window.hideDeleteModal = function () {
   }
 };
 
-// Create Operation (form submission)
+// Create Operation
 window.addSchool = async function (event) {
   event.preventDefault();
 
@@ -1791,51 +1814,16 @@ window.addSchool = async function (event) {
     showToast('Admin privileges required to add schools', 'error');
     return;
   }
-  // Collect all form data
+
+  console.log('Adding school...');
+
   const schoolData = {
-    // Basic Information (Required)
-    school_name: document.getElementById('schoolName').value.trim(),
-    address: document.getElementById('address').value.trim(),
-    postal_code: document.getElementById('postalCode').value.trim(),
+    school_name: document.getElementById('schoolName').value,
+    address: document.getElementById('address').value,
+    postal_code: document.getElementById('postalCode').value,
     zone_code: document.getElementById('zoneCode').value,
     mainlevel_code: document.getElementById('mainlevelCode').value,
-    principal_name: document.getElementById('principalName').value.trim(),
-
-    // School Classification
-    type_code: document.getElementById('typeCode').value || null,
-    nature_code: document.getElementById('natureCode').value || null,
-    session_code: document.getElementById('sessionCode').value || null,
-    dgp_code: document.getElementById('dgpCode').value.trim() || null,
-
-    // Contact Information
-    email_address: document.getElementById('emailAddress').value.trim() || null,
-    telephone_no: document.getElementById('telephoneNo').value.trim() || null,
-    telephone_no_2: document.getElementById('telephoneNo2').value.trim() || null,
-    fax_no: document.getElementById('faxNo').value.trim() || null,
-    url_address: document.getElementById('urlAddress').value.trim() || null,
-
-    // School Leadership
-    first_vp_name: document.getElementById('firstVpName').value.trim() || null,
-    second_vp_name: document.getElementById('secondVpName').value.trim() || null,
-    third_vp_name: document.getElementById('thirdVpName').value.trim() || null,
-    fourth_vp_name: document.getElementById('fourthVpName').value.trim() || null,
-    fifth_vp_name: document.getElementById('fifthVpName').value.trim() || null,
-    sixth_vp_name: document.getElementById('sixthVpName').value.trim() || null,
-
-    // Special Programmes
-    autonomous_ind: document.getElementById('autonomousInd').value || null,
-    gifted_ind: document.getElementById('giftedInd').value || null,
-    ip_ind: document.getElementById('ipInd').value || null,
-    sap_ind: document.getElementById('sapInd').value || null,
-
-    // Mother Tongue Languages
-    mothertongue1_code: document.getElementById('mothertongue1Code').value || null,
-    mothertongue2_code: document.getElementById('mothertongue2Code').value || null,
-    mothertongue3_code: document.getElementById('mothertongue3Code').value || null,
-
-    // Transportation
-    mrt_desc: document.getElementById('mrtDesc').value.trim() || null,
-    bus_desc: document.getElementById('busDesc').value.trim() || null
+    principal_name: document.getElementById('principalName').value
   };
 
   console.log('School data:', schoolData);
@@ -1860,7 +1848,6 @@ window.addSchool = async function (event) {
       hideAddModal();
       loadSchoolStats();
 
-      // Refresh search results if there's an active search
       const searchBox = document.getElementById('searchBox');
       if (searchBox.value.trim()) {
         setTimeout(() => runQuery(), 500);
@@ -1874,10 +1861,10 @@ window.addSchool = async function (event) {
   }
 };
 
-window.toggleAdditionalInfo = function () {
+window.toggleAdditionalInfo = function() {
   const section = document.getElementById('additionalInfoSection');
   const icon = document.getElementById('additionalInfoIcon');
-
+  
   if (section.style.display === 'none') {
     section.style.display = 'block';
     icon.style.transform = 'rotate(180deg)';
@@ -1888,7 +1875,7 @@ window.toggleAdditionalInfo = function () {
 };
 
 // Edit/Update Operation - Now uses modal
-window.editSchool = async function (school) {
+window.editSchool = function (school) {
   // Check if user is admin
   if (!isUserAdmin()) {
     showToast('Admin privileges required to edit schools', 'error');
@@ -1896,86 +1883,29 @@ window.editSchool = async function (school) {
   }
 
   console.log('Edit school clicked:', school);
-  
-  // Show loading toast
-  showToast('Loading school details...', 'info');
-
-  try {
-    // Fetch complete school details including raw_general_info data
-    const response = await fetch(`/api/schools/${school.school_id}/details`);
-    const data = await response.json();
-
-    if (!data.success || !data.school) {
-      showToast('Failed to load school details', 'error');
-      return;
-    }
-
-    // Open modal with complete data
-    showEditModal(data.school);
-
-  } catch (error) {
-    console.error('Error loading school for edit:', error);
-    showToast('Failed to load school details: ' + error.message, 'error');
-  }
+  showEditModal(school);
 };
 
 // Update Operation (form submission)
 window.updateSchool = async function (event) {
   event.preventDefault();
 
+  // Check if user is admin
   if (!isUserAdmin()) {
     showToast('Admin privileges required to edit schools', 'error');
     return;
   }
 
-  console.log('Updating school with all fields...');
+  console.log('Updating school...');
 
   const schoolId = document.getElementById('editSchoolId').value;
-  
   const updatedData = {
-    // Basic Information (Required)
-    school_name: document.getElementById('editSchoolName').value.trim(),
-    address: document.getElementById('editAddress').value.trim(),
-    postal_code: document.getElementById('editPostalCode').value.trim(),
+    school_name: document.getElementById('editSchoolName').value,
+    address: document.getElementById('editAddress').value,
+    postal_code: document.getElementById('editPostalCode').value,
     zone_code: document.getElementById('editZoneCode').value,
     mainlevel_code: document.getElementById('editMainlevelCode').value,
-    principal_name: document.getElementById('editPrincipalName').value.trim(),
-    
-    // School Classification
-    type_code: document.getElementById('editTypeCode').value || null,
-    nature_code: document.getElementById('editNatureCode').value || null,
-    session_code: document.getElementById('editSessionCode').value || null,
-    dgp_code: document.getElementById('editDgpCode').value.trim() || null,
-    
-    // Contact Information
-    email_address: document.getElementById('editEmailAddress').value.trim() || null,
-    telephone_no: document.getElementById('editTelephoneNo').value.trim() || null,
-    telephone_no_2: document.getElementById('editTelephoneNo2').value.trim() || null,
-    fax_no: document.getElementById('editFaxNo').value.trim() || null,
-    url_address: document.getElementById('editUrlAddress').value.trim() || null,
-    
-    // School Leadership
-    first_vp_name: document.getElementById('editFirstVpName').value.trim() || null,
-    second_vp_name: document.getElementById('editSecondVpName').value.trim() || null,
-    third_vp_name: document.getElementById('editThirdVpName').value.trim() || null,
-    fourth_vp_name: document.getElementById('editFourthVpName').value.trim() || null,
-    fifth_vp_name: document.getElementById('editFifthVpName').value.trim() || null,
-    sixth_vp_name: document.getElementById('editSixthVpName').value.trim() || null,
-    
-    // Special Programmes
-    autonomous_ind: document.getElementById('editAutonomousInd').value || null,
-    gifted_ind: document.getElementById('editGiftedInd').value || null,
-    ip_ind: document.getElementById('editIpInd').value || null,
-    sap_ind: document.getElementById('editSapInd').value || null,
-    
-    // Mother Tongue Languages
-    mothertongue1_code: document.getElementById('editMothertongue1Code').value || null,
-    mothertongue2_code: document.getElementById('editMothertongue2Code').value || null,
-    mothertongue3_code: document.getElementById('editMothertongue3Code').value || null,
-    
-    // Transportation
-    mrt_desc: document.getElementById('editMrtDesc').value.trim() || null,
-    bus_desc: document.getElementById('editBusDesc').value.trim() || null
+    principal_name: document.getElementById('editPrincipalName').value
   };
 
   console.log('Updated data:', updatedData);
@@ -1997,12 +1927,7 @@ window.updateSchool = async function (event) {
     if (result.success || res.ok) {
       showToast('✓ School updated successfully!', 'success');
       hideEditModal();
-      
-      // Refresh results if there's an active search
-      const searchBox = document.getElementById('searchBox');
-      if (searchBox.value.trim()) {
-        setTimeout(() => runQuery(), 500);
-      }
+      runQuery(); // Refresh results
     } else {
       showToast('Error: ' + (result.error || 'Failed to update school'), 'error');
     }
@@ -2225,6 +2150,8 @@ function displayEnhancedSchoolModal(data) {
 }
 
 
+
+
 // ========== SCHOOL COMPARISON FUNCTIONS ==========
 // Comparison state
 let comparisonMode = {
@@ -2378,7 +2305,7 @@ function selectSchoolForComparison(element, schoolId) {
 
 function extractSchoolName(element) {
   // Try different methods to extract school name based on element type
-
+  
   // Method 1: For table rows - look for school_name in the cells
   if (element.tagName === 'TR') {
     // Try to find the cell with school name (usually second cell after school_id)
@@ -2391,7 +2318,7 @@ function extractSchoolName(element) {
       }
     }
   }
-
+  
   // Method 2: Look for strong tag (used in many result displays)
   const strong = element.querySelector('strong');
   if (strong) return strong.textContent.trim();
@@ -3358,37 +3285,6 @@ function renderDistinctivesList(distinctives) {
     `;
 }
 
-// Load dropdown values for Add/Edit modals
-function loadAddEditDropdowns() {
-  console.log('Loading dropdowns for Add/Edit modals...');
-
-  // For Add Modal
-  loadDropdownOptions('/api/dropdown/types', 'typeCode', 'Select type...');
-  loadDropdownOptions('/api/dropdown/natures', 'natureCode', 'Select nature...');
-  loadDropdownOptions('/api/dropdown/sessions', 'sessionCode', 'Select session...');
-  loadDropdownOptions('/api/dropdown/dgp-codes', 'dgpCode', 'DGP classification');
-  loadDropdownOptions('/api/dropdown/mother-tongues', 'mothertongue1Code', 'Select...');
-  loadDropdownOptions('/api/dropdown/mother-tongues', 'mothertongue2Code', 'Select...');
-  loadDropdownOptions('/api/dropdown/mother-tongues', 'mothertongue3Code', 'Select...');
-
-  // For Edit Modal
-  loadDropdownOptions('/api/dropdown/types', 'editTypeCode', 'Select type');
-  loadDropdownOptions('/api/dropdown/natures', 'editNatureCode', 'Select nature');
-  loadDropdownOptions('/api/dropdown/sessions', 'editSessionCode', 'Select session');
-  loadDropdownOptions('/api/dropdown/dgp-codes', 'editDgpCode', 'DGP classification');
-  loadDropdownOptions('/api/dropdown/mother-tongues', 'editMothertongue1Code', 'Select...');
-  loadDropdownOptions('/api/dropdown/mother-tongues', 'editMothertongue2Code', 'Select...');
-  loadDropdownOptions('/api/dropdown/mother-tongues', 'editMothertongue3Code', 'Select...');
-}
-
-// Pre-load dropdown values on page load for faster modal opens
-document.addEventListener('DOMContentLoaded', function() {
-  // Pre-load dropdown values in background after page loads
-  setTimeout(() => {
-    loadAddEditDropdowns();
-  }, 2000); // Wait 2 seconds after page load
-});
-
 // ========== Toast Notifications ==========
 function showToast(message, type = 'info') {
   console.log('Toast:', type, message);
@@ -3408,28 +3304,28 @@ function showToast(message, type = 'info') {
   }, 3000);
 }
 
-window.showRecentSchools = async function () {
+window.showRecentSchools = async function() {
   if (!isUserAdmin()) {
     showToast('Admin access required', 'error');
     return;
   }
-
+  
   showToast('Loading recent schools...', 'info');
-
+  
   try {
     const response = await fetch('/api/schools/recent', {
       headers: getAuthHeaders()
     });
-
+    
     const data = await response.json();
-
+    
     if (!data.success || !data.schools || data.schools.length === 0) {
       showToast('No recent schools found', 'info');
       return;
     }
-
+    
     displayRecentSchoolsModal(data.schools);
-
+    
   } catch (error) {
     console.error('Failed to load recent schools:', error);
     showToast('Failed to load recent schools', 'error');
@@ -3448,7 +3344,7 @@ function displayRecentSchoolsModal(schools) {
         <div class="modal-body" style="padding: 1.5rem; max-height: 60vh; overflow-y: auto;">
           <div style="display: flex; flex-direction: column; gap: 1rem;">
   `;
-
+  
   schools.forEach(school => {
     html += `
       <div class="recent-school-item" 
@@ -3470,31 +3366,31 @@ function displayRecentSchoolsModal(schools) {
       </div>
     `;
   });
-
+  
   html += `
           </div>
         </div>
       </div>
     </div>
   `;
-
+  
   document.body.insertAdjacentHTML('beforeend', html);
   document.body.style.overflow = 'hidden';
-
+  
   // Add hover effect
   document.querySelectorAll('.recent-school-item').forEach(item => {
-    item.addEventListener('mouseenter', function () {
+    item.addEventListener('mouseenter', function() {
       this.style.backgroundColor = '#F9FAFB';
       this.style.borderColor = '#3B82F6';
     });
-    item.addEventListener('mouseleave', function () {
+    item.addEventListener('mouseleave', function() {
       this.style.backgroundColor = '';
       this.style.borderColor = '#E5E7EB';
     });
   });
 }
 
-window.closeRecentSchoolsModal = function () {
+window.closeRecentSchoolsModal = function() {
   const modal = document.getElementById('recentSchoolsModal');
   if (modal) {
     modal.remove();
